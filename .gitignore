@@ -3,3 +3,4 @@ dist/
 .deps/
 out/
 wads/
+__pycache__/

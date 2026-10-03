@@ -40,8 +40,29 @@ void plat_alert(const char *message);
 uint64_t plat_ticks_us(void);
 void plat_sleep_us(uint32_t us);
 
+typedef void (*plat_dir_fn)(const char *name, void *user);
+
+typedef struct
+{
+    int status;
+    int64_t length;
+    char type[64];
+} plat_http_info_t;
+
+typedef struct plat_http plat_http_t;
+
 const char *const *plat_wad_dirs(void);
 const char *plat_save_dir(void);
+const char *plat_wad_folder(void);
+int plat_list_dir(const char *path, plat_dir_fn fn, void *user);
+
+plat_http_t *plat_http_get(const char *url, uint64_t offset, plat_http_info_t *info,
+                           char *error, int error_size);
+int plat_http_read(plat_http_t *http, void *buffer, int size);
+void plat_http_close(plat_http_t *http);
+
+int plat_text_open(const char *title, const char *text);
+int plat_text_poll(char *text, int size);
 
 int plat_video_init(int width, int height);
 void plat_video_present(const uint8_t *pixels, const uint32_t *palette);

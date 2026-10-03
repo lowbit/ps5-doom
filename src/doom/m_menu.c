@@ -517,7 +517,7 @@ void M_ReadSaveStrings(void)
 	
     for (i = 0;i < load_end;i++)
     {
-	sprintf(name,"%s/"SAVEGAMENAME"%d.dsg",I_GetSaveDir(),i);
+	sprintf(name,"%s%d.dsg",savegameprefix,i);
 
 	handle = open (name, O_RDONLY | 0, 0666);
 	if (handle == -1)
@@ -577,7 +577,7 @@ void M_LoadSelect(int choice)
 {
     char    name[256];
 	
-    sprintf(name,"%s/"SAVEGAMENAME"%d.dsg",I_GetSaveDir(),choice);
+    sprintf(name,"%s%d.dsg",savegameprefix,choice);
     G_LoadGame (name);
     M_ClearMenus ();
 }

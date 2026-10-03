@@ -25,6 +25,7 @@
 
 #include "d_ticcmd.h"
 #include "d_event.h"
+#include "doomdef.h"
 
 #ifdef __GNUG__
 #pragma interface
@@ -88,14 +89,21 @@ void I_Tactile (int on, int off, int total);
 
 void I_Error (char *error, ...) __attribute__((noreturn));
 
-// NULL-terminated list of directories searched for IWADs.
-char** I_GetWadDirs (void);
-
 // Directory for the config file and save games.
 char* I_GetSaveDir (void);
 
-// True when the player asked for the Doom 1 style game at startup.
-boolean I_PreferDoom1 (void);
+// The game to play: its IWAD and how the engine treats it.
+typedef struct
+{
+    char*		path;
+    char*		savename;	// save game path up to the slot number
+    GameMode_t		mode;
+    GameMission_t	mission;
+    Language_t		language;
+} iwad_t;
+
+// Runs the launcher and returns the chosen game, or NULL when there is none.
+iwad_t* I_ChooseIwad (void);
 
 
 #endif

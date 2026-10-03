@@ -5,8 +5,8 @@
 Writes the plan to the title folder as test.cfg (plus a capture port), launches PPSA99666 with
 the doomlaunch payload (tools/launcher, loaded through the Payload Manager), pulls the frames the
 plan captures from the running title over TCP, converts them to PNG under build/test/run/,
-prints the title's log lines from the kernel log (klogsrv capture in build/test/klog.txt) and
-removes test.cfg again. The PS5Upload helper must be running.
+receives the title's log over the same connection when it exits (build/test/run/doom.log),
+prints it and removes test.cfg again. The PS5Upload helper must be running.
 """
 import argparse
 import base64
@@ -28,12 +28,8 @@ LAUNCHER = ROOT / "build" / "launcher" / "doomlaunch.elf"
 LAUNCHER_DIR = "/data/pldmgr/payloads/doomlaunch"
 TEST_PLAN = f"/data/homebrew/{TITLE}/test.cfg"
 CAPTURE_PORT = 9119
-KLOG = ROOT / "build" / "test" / "klog.txt"
 OUT = ROOT / "build" / "test" / "run"
 FRAME = (1920, 1080)
-NOISE = ("PFAuth", "FMEM", "PSM.UI", "catalog", "SHELLFLAG", "LOGIN MGR", "CloudMessaging",
-         "ResArbitrator", "PlayGo", "AsyncStorage", "a53mm", "BAPM", "<118>", "[KERNEL]", "###",
-         "num clients", "Amm config", "wt_application", "appmgr_create")
 
 
 def get(url, timeout=10):
@@ -112,8 +108,11 @@ def pull_captures(seen):
             name = receive_exactly(sock, name_length).decode()
             (size,) = struct.unpack("<Q", receive_exactly(sock, 8))
             data = receive_exactly(sock, size)
-            Image.frombuffer("RGBA", FRAME, detile(data), "raw", "RGBA", 0, 1).convert("RGB").save(OUT / f"{name}.png")
             seen.add(name)
+            if name.endswith(".log"):
+                (OUT / name).write_bytes(data)
+                continue
+            Image.frombuffer("RGBA", FRAME, detile(data), "raw", "RGBA", 0, 1).convert("RGB").save(OUT / f"{name}.png")
             print(f"captured {name}", flush=True)
     except (OSError, ConnectionError) as e:
         print(f"capture pull interrupted: {e}", flush=True)
@@ -135,25 +134,20 @@ def main():
     plan = Path(args.plan).read_text().rstrip("\n") + f"\nserve {CAPTURE_PORT}\n"
     write_remote(TEST_PLAN, plan.encode())
 
-    start = KLOG.stat().st_size
     print("launch:", get(f"{PLDMGR}/loadpayload:{LAUNCHER.name}", timeout=30).strip()[:200], flush=True)
     seen = set()
     deadline = time.time() + args.timeout
-    exited = False
     try:
-        while time.time() < deadline and not exited:
+        while time.time() < deadline and "doom.log" not in seen:
             pull_captures(seen)
-            text = KLOG.read_bytes()[start:].decode(errors="replace")
-            exited = "ps5: exit" in text or "Terminating pid" in text
             time.sleep(1)
     finally:
         push.http("POST", "/api/ps5/fs/delete", {"addr": push.XFER, "path": TEST_PLAN})
 
-    text = KLOG.read_bytes()[start:].decode(errors="replace")
-    lines = [l for l in text.splitlines() if l.strip() and not any(n in l for n in NOISE)]
-    (OUT / "log.txt").write_text("\n".join(lines), encoding="utf-8")
-    print("\n".join(lines[-80:]))
-    print(f"\nexited={exited} captures={sorted(seen)}")
+    log = OUT / "doom.log"
+    if log.exists():
+        print("\n".join(log.read_text(errors="replace").splitlines()[-80:]))
+    print(f"\nexited={log.exists()} captures={sorted(seen - {'doom.log'})}")
 
 
 if __name__ == "__main__":

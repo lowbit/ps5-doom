@@ -122,6 +122,67 @@ int sceSystemServiceLoadExec(const char *path, char *const *argv);
 
 int sceUserServiceInitialize(void *params);
 int sceUserServiceGetInitialUser(int *user);
+int sceUserServiceGetForegroundUser(int *user);
+
+int sceKernelOpen(const char *path, int flags, int mode);
+int sceKernelClose(int fd);
+int sceKernelGetdents(int fd, char *buffer, int size);
+
+int sceNetPoolCreate(const char *name, int size, int flags);
+int sceSslInit(size_t pool_size);
+int sceHttpInit(int net_pool, int ssl_context, size_t pool_size);
+int sceHttpCreateTemplate(int context, const char *user_agent, int version, int auto_proxy);
+int sceHttpSetAutoRedirect(int id, int enabled);
+int sceHttpSetResolveTimeOut(int id, uint32_t usec);
+int sceHttpSetConnectTimeOut(int id, uint32_t usec);
+int sceHttpSetSendTimeOut(int id, uint32_t usec);
+int sceHttpSetRecvTimeOut(int id, uint32_t usec);
+int sceHttpsEnableOption(int id, uint32_t flags);
+int sceHttpCreateConnectionWithURL(int template_id, const char *url, int keep_alive);
+int sceHttpCreateRequestWithURL(int connection, int method, const char *url,
+                                uint64_t content_length);
+int sceHttpAddRequestHeader(int id, const char *name, const char *value, uint32_t mode);
+int sceHttpSendRequest(int request, const void *data, size_t size);
+int sceHttpGetStatusCode(int request, int *status);
+int sceHttpGetResponseContentLength(int request, int *result, uint64_t *length);
+int sceHttpGetAllResponseHeaders(int request, char **headers, size_t *size);
+int sceHttpParseResponseHeader(const char *headers, size_t size, const char *name,
+                               const char **value, size_t *value_size);
+int sceHttpReadData(int request, void *data, size_t size);
+int sceHttpDeleteRequest(int request);
+int sceHttpDeleteConnection(int connection);
+
+typedef struct
+{
+    int32_t user;
+    int32_t type;
+    uint64_t languages;
+    int32_t enter_label;
+    int32_t input_method;
+    void *filter;
+    uint32_t option;
+    uint32_t max_length;
+    uint16_t *text;
+    float x, y;
+    int32_t horizontal_alignment;
+    int32_t vertical_alignment;
+    const uint16_t *placeholder;
+    const uint16_t *title;
+    int8_t reserved[16];
+} SceImeDialogParam;
+
+typedef struct
+{
+    int32_t outcome;
+    int8_t reserved[12];
+} SceImeDialogResult;
+
+int sceSysmoduleLoadModule(uint16_t id);
+int sceCommonDialogInitialize(void);
+int sceImeDialogInit(const SceImeDialogParam *param, const void *extended);
+int sceImeDialogGetStatus(void);
+int sceImeDialogGetResult(SceImeDialogResult *result);
+int sceImeDialogTerm(void);
 
 int sceVideoOutOpen(int user, int bus, int index, const void *params);
 int sceVideoOutClose(int handle);

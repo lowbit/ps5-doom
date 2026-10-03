@@ -106,6 +106,8 @@ int plat_video_init(int width, int height)
     gpu_config_t config;
     int i;
 
+    if (video >= 0)
+        return width == src_width && height == src_height ? 0 : -1;
     src_width = width;
     src_height = height;
     for (i = 0; i < VIEW_WIDTH; i++)

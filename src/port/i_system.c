@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 
 #include "doomdef.h"
@@ -12,6 +13,7 @@
 #include "i_system.h"
 #include "i_video.h"
 
+#include "launcher.h"
 #include "platform.h"
 
 #define ZONE_SIZE (64 * 1024 * 1024)
@@ -82,21 +84,50 @@ byte *I_AllocLow(int length)
     return mem;
 }
 
-char **I_GetWadDirs(void)
-{
-    return (char **)plat_wad_dirs();
-}
-
 char *I_GetSaveDir(void)
 {
     return (char *)plat_save_dir();
 }
 
-boolean I_PreferDoom1(void)
+iwad_t *I_ChooseIwad(void)
 {
-    pad_state_t pad;
+    static const struct
+    {
+        game_kind_t kind;
+        GameMode_t mode;
+        GameMission_t mission;
+        Language_t language;
+    } modes[] = {
+        {GAME_ULTIMATE, retail, doom, english},
+        {GAME_DOOM, registered, doom, english},
+        {GAME_DOOM2, commercial, doom2, english},
+        {GAME_DOOM2_FRENCH, commercial, doom2, french},
+        {GAME_TNT, commercial, pack_tnt, english},
+        {GAME_PLUTONIA, commercial, pack_plut, english},
+        {GAME_FREEDOOM1, retail, doom, english},
+        {GAME_FREEDOOM2, commercial, doom2, english},
+        {GAME_SHAREWARE, shareware, doom, english},
+    };
+    static iwad_t iwad;
+    static char savename[GAME_PATH];
+    const game_t *game = launcher_choose();
+    size_t i;
 
-    return plat_pad_read(&pad) == 0 && (pad.buttons & PAD_L2);
+    if (!game)
+        return NULL;
+    for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++)
+        if (modes[i].kind == game->kind)
+        {
+            iwad.mode = modes[i].mode;
+            iwad.mission = modes[i].mission;
+            iwad.language = modes[i].language;
+        }
+    snprintf(savename, sizeof(savename), "%s/%.*ssav", plat_save_dir(), (int)(strlen(game->file) - 4),
+             game->file);
+    iwad.path = (char *)game->path;
+    iwad.savename = savename;
+    plat_log("launcher: starting %s from %s\n", game->title, game->path);
+    return &iwad;
 }
 
 static void shutdown_all(void)

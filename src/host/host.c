@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <dirent.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -14,7 +15,7 @@
 
 #define AUDIO_BLOCK 480
 
-static const char *wad_dirs[2];
+static const char *wad_dirs[3];
 static const char *save_dir;
 static const char *out_dir;
 static int frame;
@@ -39,12 +40,14 @@ int plat_init(int argc, char **argv)
     (void)argc;
     (void)argv;
     wad_dirs[0] = realpath(env_or("DOOM_WADDIR", "wads"), NULL);
-    wad_dirs[1] = NULL;
     save_dir = env_or("DOOM_SAVEDIR", "/tmp/doom-save");
+    wad_dirs[1] = save_dir;
     out_dir = realpath(env_or("DOOM_OUT", "out"), NULL);
     test_plan_limit(atoi(env_or("DOOM_FRAMES", "0")));
     test_plan_captures(getenv("DOOM_CAPTURE"));
     test_plan_input(getenv("DOOM_INPUT"));
+    test_plan_set_game(getenv("DOOM_IWAD"));
+    test_plan_set_text(getenv("DOOM_TEXT"));
     mkdir(save_dir, 0755);
     if (!wad_dirs[0] || !out_dir)
     {
@@ -100,6 +103,39 @@ const char *const *plat_wad_dirs(void)
 const char *plat_save_dir(void)
 {
     return save_dir;
+}
+
+const char *plat_wad_folder(void)
+{
+    return wad_dirs[0];
+}
+
+int plat_list_dir(const char *path, plat_dir_fn fn, void *user)
+{
+    DIR *dir = opendir(path);
+    struct dirent *entry;
+
+    if (!dir)
+        return -1;
+    while ((entry = readdir(dir)))
+        if (strcmp(entry->d_name, ".") && strcmp(entry->d_name, ".."))
+            fn(entry->d_name, user);
+    closedir(dir);
+    return 0;
+}
+
+int plat_text_open(const char *title, const char *text)
+{
+    fprintf(stderr, "host: keyboard \"%s\" opened with \"%s\"\n", title, text);
+    return 0;
+}
+
+int plat_text_poll(char *text, int size)
+{
+    if (!test_plan_text())
+        return -1;
+    snprintf(text, size, "%s", test_plan_text());
+    return 1;
 }
 
 int plat_video_init(int width, int height)

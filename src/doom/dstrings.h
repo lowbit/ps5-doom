@@ -37,8 +37,6 @@
 #include "d_englsh.h"
 #endif
 
-// Misc. other strings.
-#define SAVEGAMENAME	"doomsav"
 
 
 //
@@ -47,7 +45,6 @@
 // Path names are OS-sensitive.
 //
 #define DEVMAPS "devmaps"
-#define DEVDATA "devdata"
 
 
 // Not done in french?

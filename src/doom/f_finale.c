@@ -61,26 +61,9 @@ char*	e2text = E2TEXT;
 char*	e3text = E3TEXT;
 char*	e4text = E4TEXT;
 
-char*	c1text = C1TEXT;
-char*	c2text = C2TEXT;
-char*	c3text = C3TEXT;
-char*	c4text = C4TEXT;
-char*	c5text = C5TEXT;
-char*	c6text = C6TEXT;
-
-char*	p1text = P1TEXT;
-char*	p2text = P2TEXT;
-char*	p3text = P3TEXT;
-char*	p4text = P4TEXT;
-char*	p5text = P5TEXT;
-char*	p6text = P6TEXT;
-
-char*	t1text = T1TEXT;
-char*	t2text = T2TEXT;
-char*	t3text = T3TEXT;
-char*	t4text = T4TEXT;
-char*	t5text = T5TEXT;
-char*	t6text = T6TEXT;
+char*	doom2text[] = {C1TEXT, C2TEXT, C3TEXT, C4TEXT, C5TEXT, C6TEXT};
+char*	plutoniatext[] = {P1TEXT, P2TEXT, P3TEXT, P4TEXT, P5TEXT, P6TEXT};
+char*	tnttext[] = {T1TEXT, T2TEXT, T3TEXT, T4TEXT, T5TEXT, T6TEXT};
 
 char*	finaletext;
 char*	finaleflat;
@@ -141,33 +124,36 @@ void F_StartFinale (void)
       // DOOM II and missions packs with E1, M34
       case commercial:
       {
+	  char** text = gamemission == pack_tnt ? tnttext
+	              : gamemission == pack_plut ? plutoniatext : doom2text;
+
 	  S_ChangeMusic(mus_read_m, true);
 
 	  switch (gamemap)
 	  {
 	    case 6:
 	      finaleflat = "SLIME16";
-	      finaletext = c1text;
+	      finaletext = text[0];
 	      break;
 	    case 11:
 	      finaleflat = "RROCK14";
-	      finaletext = c2text;
+	      finaletext = text[1];
 	      break;
 	    case 20:
 	      finaleflat = "RROCK07";
-	      finaletext = c3text;
+	      finaletext = text[2];
 	      break;
 	    case 30:
 	      finaleflat = "RROCK17";
-	      finaletext = c4text;
+	      finaletext = text[3];
 	      break;
 	    case 15:
 	      finaleflat = "RROCK13";
-	      finaletext = c5text;
+	      finaletext = text[4];
 	      break;
 	    case 31:
 	      finaleflat = "RROCK19";
-	      finaletext = c6text;
+	      finaletext = text[5];
 	      break;
 	    default:
 	      // Ouch.
@@ -181,7 +167,7 @@ void F_StartFinale (void)
       default:
 	S_ChangeMusic(mus_read_m, true);
 	finaleflat = "F_SKY1"; // Not used anywhere else.
-	finaletext = c1text;  // FIXME - other text, music?
+	finaletext = doom2text[0];  // FIXME - other text, music?
 	break;
     }
     

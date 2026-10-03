@@ -124,6 +124,7 @@ boolean		advancedemo;
 char		wadfile[1024];		// primary wad file
 char		mapdir[1024];           // directory of development maps
 char		basedefault[1024];      // default file
+char*		savegameprefix;         // save game path up to the slot number
 
 
 void D_CheckNetGame (void);
@@ -545,201 +546,30 @@ void D_AddFile (char *file)
     wadfiles[numwadfiles] = newfile;
 }
 
-static char* FindWad (char* name)
-{
-    char**	dir;
-    char*	path;
-    char*	base;
-    int		upper;
-    int		handle;
-
-    for (dir = I_GetWadDirs (); *dir; dir++)
-    {
-	path = malloc (strlen(*dir)+1+strlen(name)+1);
-	for (upper = 0; upper < 2; upper++)
-	{
-	    sprintf (path, "%s/%s", *dir, name);
-	    for (base = path+strlen(*dir)+1; upper && *base; base++)
-		*base = toupper (*base);
-	    if ((handle = open (path, O_RDONLY)) >= 0)
-	    {
-		close (handle);
-		return path;
-	    }
-	}
-	free (path);
-    }
-    return NULL;
-}
-
 //
 // IdentifyVersion
-// Checks availability of IWAD files by name,
-// to determine whether registered/commercial features
-// should be executed (notably loading PWAD's).
+// Takes the game chosen in the launcher and sets up
+// registered/commercial features to match its IWAD.
 //
 void IdentifyVersion (void)
 {
-
-    char*	doom1wad;
-    char*	doomwad;
-    char*	doomuwad;
-    char*	doom2wad;
-
-    char*	doom2fwad;
-    char*	plutoniawad;
-    char*	tntwad;
-    char*	freedoom1wad;
-    char*	freedoom2wad;
-
-    doom2wad = FindWad ("doom2.wad");
-    doomuwad = FindWad ("doomu.wad");
-    doomwad = FindWad ("doom.wad");
-    doom1wad = FindWad ("doom1.wad");
-    plutoniawad = FindWad ("plutonia.wad");
-    tntwad = FindWad ("tnt.wad");
-    doom2fwad = FindWad ("doom2f.wad");
-    freedoom1wad = FindWad ("freedoom1.wad");
-    freedoom2wad = FindWad ("freedoom2.wad");
+    iwad_t*	iwad;
 
     sprintf (basedefault, "%s/default.cfg", I_GetSaveDir ());
 
-    if (M_CheckParm ("-shdev"))
+    iwad = I_ChooseIwad ();
+    if (!iwad)
     {
-	gamemode = shareware;
-	devparm = true;
-	D_AddFile (DEVDATA"doom1.wad");
-	D_AddFile (DEVMAPS"data_se/texture1.lmp");
-	D_AddFile (DEVMAPS"data_se/pnames.lmp");
-	strcpy (basedefault,DEVDATA"default.cfg");
+	printf("Game mode indeterminate.\n");
+	gamemode = indetermined;
 	return;
     }
 
-    if (M_CheckParm ("-regdev"))
-    {
-	gamemode = registered;
-	devparm = true;
-	D_AddFile (DEVDATA"doom.wad");
-	D_AddFile (DEVMAPS"data_se/texture1.lmp");
-	D_AddFile (DEVMAPS"data_se/texture2.lmp");
-	D_AddFile (DEVMAPS"data_se/pnames.lmp");
-	strcpy (basedefault,DEVDATA"default.cfg");
-	return;
-    }
-
-    if (M_CheckParm ("-comdev"))
-    {
-	gamemode = commercial;
-	devparm = true;
-	/* I don't bother
-	if(plutonia)
-	    D_AddFile (DEVDATA"plutonia.wad");
-	else if(tnt)
-	    D_AddFile (DEVDATA"tnt.wad");
-	else*/
-	    D_AddFile (DEVDATA"doom2.wad");
-	    
-	D_AddFile (DEVMAPS"cdata/texture1.lmp");
-	D_AddFile (DEVMAPS"cdata/pnames.lmp");
-	strcpy (basedefault,DEVDATA"default.cfg");
-	return;
-    }
-
-    if (I_PreferDoom1 ())
-    {
-	if (doomuwad)
-	{
-	    gamemode = retail;
-	    D_AddFile (doomuwad);
-	    return;
-	}
-	if (doomwad)
-	{
-	    gamemode = registered;
-	    D_AddFile (doomwad);
-	    return;
-	}
-	if (freedoom1wad)
-	{
-	    gamemode = retail;
-	    D_AddFile (freedoom1wad);
-	    return;
-	}
-    }
-
-    if (doom2fwad)
-    {
-	gamemode = commercial;
-	// C'est ridicule!
-	// Let's handle languages in config files, okay?
-	language = french;
-	printf("French version\n");
-	D_AddFile (doom2fwad);
-	return;
-    }
-
-    if (doom2wad)
-    {
-	gamemode = commercial;
-	D_AddFile (doom2wad);
-	return;
-    }
-
-    if (plutoniawad)
-    {
-      gamemode = commercial;
-      D_AddFile (plutoniawad);
-      return;
-    }
-
-    if (tntwad)
-    {
-      gamemode = commercial;
-      D_AddFile (tntwad);
-      return;
-    }
-
-    if (doomuwad)
-    {
-      gamemode = retail;
-      D_AddFile (doomuwad);
-      return;
-    }
-
-    if (doomwad)
-    {
-      gamemode = registered;
-      D_AddFile (doomwad);
-      return;
-    }
-
-    if (freedoom2wad)
-    {
-      gamemode = commercial;
-      D_AddFile (freedoom2wad);
-      return;
-    }
-
-    if (freedoom1wad)
-    {
-      gamemode = retail;
-      D_AddFile (freedoom1wad);
-      return;
-    }
-
-    if (doom1wad)
-    {
-      gamemode = shareware;
-      D_AddFile (doom1wad);
-      return;
-    }
-
-    printf("Game mode indeterminate.\n");
-    gamemode = indetermined;
-
-    // We don't abort. Let's see what the PWAD contains.
-    //exit(1);
-    //I_Error ("Game mode indeterminate\n");
+    gamemode = iwad->mode;
+    gamemission = iwad->mission;
+    language = iwad->language;
+    savegameprefix = iwad->savename;
+    D_AddFile (iwad->path);
 }
 
 //
@@ -1158,7 +988,7 @@ void D_DoomMain (void)
     p = M_CheckParm ("-loadgame");
     if (p && p < myargc-1)
     {
-	sprintf(file, "%s/"SAVEGAMENAME"%c.dsg",I_GetSaveDir(),myargv[p+1][0]);
+	sprintf(file, "%s%c.dsg",savegameprefix,myargv[p+1][0]);
 	G_LoadGame (file);
     }
 	

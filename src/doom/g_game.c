@@ -454,9 +454,7 @@ void G_DoLoadLevel (void)
 
     // DOOM determines the sky texture to be used
     // depending on the current episode, and the game version.
-    if ( (gamemode == commercial)
-	 || ( gamemode == pack_tnt )
-	 || ( gamemode == pack_plut ) )
+    if (gamemode == commercial)
     {
 	skytexture = R_TextureNumForName ("SKY3");
 	if (gamemap < 12)
@@ -1272,7 +1270,7 @@ void G_DoSaveGame (void)
     int		length; 
     int		i; 
 	
-    sprintf (name,"%s/"SAVEGAMENAME"%d.dsg",I_GetSaveDir(),savegameslot);
+    sprintf (name,"%s%d.dsg",savegameprefix,savegameslot);
     description = savedescription; 
 	 
     save_p = savebuffer = Z_Malloc (SAVEGAMESIZE, PU_STATIC, NULL); 

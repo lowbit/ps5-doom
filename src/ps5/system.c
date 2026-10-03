@@ -16,11 +16,17 @@
 #define SAVE_DIR "/download0"
 #define LOG_PATH SAVE_DIR "/doom.log"
 #define WAD_DIR "/app0/wads"
+#define WAD_FOLDER "/data/homebrew/PPSA99666/wads"
 #define TEST_PLAN_PATH "/app0/test.cfg"
 #define TEST_PLAN_BYTES 8192
 #define LOG_DRAIN_US 50000
+#define LOG_SEND_BYTES (1024 * 1024)
+#define LOG_SEND_US 10000000
+#define DIRENT_BUFFER 65536
+#define DIRENT_HEADER 8
+#define OPEN_DIRECTORY 0x00020000
 
-static const char *const wad_dirs[] = {WAD_DIR, NULL};
+static const char *const wad_dirs[] = {WAD_DIR, SAVE_DIR, NULL};
 static int user = SCE_USER_SYSTEM;
 static int log_file = -1;
 static int test_cpu_present;
@@ -120,6 +126,10 @@ static void load_test_plan(void)
             ps5_capture_serve(atoi(line + 6));
         else if (!strcmp(line, "present cpu"))
             test_cpu_present = 1;
+        else if (!strncmp(line, "game ", 5))
+            test_plan_set_game(line + 5);
+        else if (!strncmp(line, "text ", 5))
+            test_plan_set_text(line + 5);
     }
     plat_log("ps5: test plan loaded\n");
 }
@@ -148,11 +158,32 @@ void plat_shutdown(void)
     ps5_pad_close();
 }
 
+static void send_log(void)
+{
+    static char text[LOG_SEND_BYTES];
+    ssize_t length;
+    off_t size;
+    int fd = open(LOG_PATH, O_RDONLY);
+
+    if (fd < 0)
+        return;
+    size = lseek(fd, 0, SEEK_END);
+    lseek(fd, size > LOG_SEND_BYTES ? size - LOG_SEND_BYTES : 0, SEEK_SET);
+    length = read(fd, text, sizeof(text));
+    close(fd);
+    if (length > 0)
+    {
+        ps5_capture_add("doom.log", text, (size_t)length);
+        ps5_capture_drain(LOG_SEND_US);
+    }
+}
+
 _Noreturn void plat_exit(int code)
 {
     plat_log("ps5: exit %d\n", code);
     fflush(NULL);
     sceKernelUsleep(LOG_DRAIN_US);
+    send_log();
     sceSystemServiceLoadExec("exit", NULL);
     for (;;)
         sceKernelUsleep(1000000);
@@ -199,4 +230,47 @@ const char *const *plat_wad_dirs(void)
 const char *plat_save_dir(void)
 {
     return SAVE_DIR;
+}
+
+const char *plat_wad_folder(void)
+{
+    return WAD_FOLDER;
+}
+
+int plat_list_dir(const char *path, plat_dir_fn fn, void *user)
+{
+    static uint8_t buffer[DIRENT_BUFFER];
+    int fd = sceKernelOpen(path, O_RDONLY | OPEN_DIRECTORY, 0);
+    int length;
+
+    if (fd < 0)
+    {
+        plat_log("ps5: cannot open %s for listing (0x%08x)\n", path, (unsigned)fd);
+        return -1;
+    }
+    while ((length = sceKernelGetdents(fd, (char *)buffer, sizeof(buffer))) > 0)
+    {
+        int offset = 0;
+
+        while (offset + DIRENT_HEADER <= length)
+        {
+            int record = buffer[offset + 4] | buffer[offset + 5] << 8;
+            int name_length = buffer[offset + 7];
+            char name[256];
+
+            if (record < DIRENT_HEADER || offset + record > length)
+                break;
+            if (name_length > record - DIRENT_HEADER)
+                name_length = record - DIRENT_HEADER;
+            memcpy(name, buffer + offset + DIRENT_HEADER, (size_t)name_length);
+            name[name_length] = 0;
+            if (name[0] && strcmp(name, ".") && strcmp(name, ".."))
+                fn(name, user);
+            offset += record;
+        }
+    }
+    sceKernelClose(fd);
+    if (length < 0)
+        plat_log("ps5: listing %s failed (0x%08x)\n", path, (unsigned)length);
+    return length < 0 ? -1 : 0;
 }

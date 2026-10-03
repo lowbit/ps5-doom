@@ -216,13 +216,17 @@ V_DrawPatch
     byte*	source; 
     int		w; 
 	 
-    y -= SHORT(patch->topoffset); 
-    x -= SHORT(patch->leftoffset); 
-#ifdef RANGECHECK 
-    if (x<0
-	||x+SHORT(patch->width) >SCREENWIDTH
+    y -= SHORT(patch->topoffset);
+    x -= SHORT(patch->leftoffset);
+    w = SHORT(patch->width);
+
+    // Widescreen pictures from the newer releases: show their middle.
+    if (w > SCREENWIDTH)
+	x = (SCREENWIDTH - w) / 2;
+#ifdef RANGECHECK
+    if ((w <= SCREENWIDTH && (x<0 || x+w >SCREENWIDTH))
 	|| y<0
-	|| y+SHORT(patch->height)>SCREENHEIGHT 
+	|| y+SHORT(patch->height)>SCREENHEIGHT
 	|| (unsigned)scrn>4)
     {
       fprintf( stderr, "Patch at %d,%d exceeds LFB\n", x,y );
@@ -230,19 +234,17 @@ V_DrawPatch
       fprintf( stderr, "V_DrawPatch: bad patch (ignored)\n");
       return;
     }
-#endif 
- 
+#endif
+
     if (!scrn)
-	V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height)); 
+	V_MarkRect (x < 0 ? 0 : x, y, w < SCREENWIDTH ? w : SCREENWIDTH, SHORT(patch->height));
 
-    col = 0; 
-    desttop = screens[scrn]+y*SCREENWIDTH+x; 
-	 
-    w = SHORT(patch->width); 
-
-    for ( ; col<w ; x++, col++, desttop++)
-    { 
-	column = (column_t *)((byte *)patch + LONG(patch->columnofs[col])); 
+    for (col = 0; col<w ; x++, col++)
+    {
+	if (x < 0 || x >= SCREENWIDTH)
+	    continue;
+	desttop = screens[scrn]+y*SCREENWIDTH+x;
+	column = (column_t *)((byte *)patch + LONG(patch->columnofs[col]));
  
 	// step through the posts in a column 
 	while (column->topdelta != 0xff ) 

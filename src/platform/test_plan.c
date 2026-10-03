@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -30,6 +31,8 @@ static int step_count;
 static int captures[MAX_CAPTURES];
 static int capture_count;
 static int frame_limit;
+static char game[64];
+static char text[512];
 
 static void parse_token(step_t *step, const char *token)
 {
@@ -143,4 +146,24 @@ void test_plan_limit(int frames)
 int test_plan_finished(int frame)
 {
     return frame_limit && frame >= frame_limit;
+}
+
+void test_plan_set_game(const char *file)
+{
+    snprintf(game, sizeof(game), "%s", file ? file : "");
+}
+
+const char *test_plan_game(void)
+{
+    return game[0] ? game : NULL;
+}
+
+void test_plan_set_text(const char *value)
+{
+    snprintf(text, sizeof(text), "%s", value ? value : "");
+}
+
+const char *test_plan_text(void)
+{
+    return text[0] ? text : NULL;
 }
