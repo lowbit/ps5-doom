@@ -1,0 +1,6 @@
+sceAgcInit
+sceAgcCbSetShRegisterRangeDirect
+sceAgcCbDispatch
+sceAgcDcbAcquireMem
+sceAgcDcbSetFlip
+sceAgcSuspendPoint
