@@ -1,4 +1,4 @@
-<p align="center"><img src="title/icon0.png" width="160" alt="DOOM icon"></p>
+<p align="center"><img src="sce_sys/icon0.png" width="160" alt="DOOM icon"></p>
 
 # DOOM for PS5 (native)
 

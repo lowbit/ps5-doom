@@ -8,7 +8,7 @@ release package carries these notices and the license texts in `PPSA99666/licens
 | Component | Used as | License |
 | --- | --- | --- |
 | [DOOM source code](https://github.com/id-Software/DOOM) (`linuxdoom-1.10`), id Software | The game engine in `src/doom/`, with the changes listed in `DEVELOPMENT.md` | GNU GPL v2 (`LICENSE`) |
-| DOOM shareware IWAD v1.9 (`DOOM1.WAD`, episode 1), id Software | Bundled game data, `wads/doom1.wad`, unmodified; fetched by `tools/fetch-shareware.sh`. Its `M_DOOM` logo, scaled up, is the home-screen icon (`title/icon0.png`) | id Software's shareware terms: free to share unmodified and free of charge |
+| DOOM shareware IWAD v1.9 (`DOOM1.WAD`, episode 1), id Software | Bundled game data, `wads/doom1.wad`, unmodified; fetched by `tools/fetch-shareware.sh`. Its `M_DOOM` logo, scaled up, is the home-screen icon (`sce_sys/icon0.png`) | id Software's shareware terms: free to share unmodified and free of charge |
 | [libarchive](https://www.libarchive.org/) 3.8.9 | Reading ZIP, 7Z and RAR archives in the importer (`tools/fetch-archive-libs.sh`, configured by `third_party/`) | BSD 2-Clause, with a few files public domain or CC0 (`licenses/libarchive.txt`) |
 | [xz](https://tukaani.org/xz/) 5.8.4, liblzma | LZMA and LZMA2 decoding for 7Z archives | BSD Zero Clause (`licenses/liblzma.txt`) |
 | [zlib](https://zlib.net/) 1.3.2 | Deflate decoding for ZIP archives | zlib license (`licenses/zlib.txt`) |

@@ -110,12 +110,12 @@ $(PS5_DIR)/eboot.elf: $(PS5_DIR)/llvm-pie.elf $(NATIVE_TOOL)
 	$(NATIVE_TOOL) link --in $< --out $@ --stub-dir $(PS5_STUBS) \
 		--module-sdk 0x02000009 --companion-sdk 0x08050001 --file-name eboot.elf
 
-$(APP)/eboot.bin: $(PS5_DIR)/eboot.elf $(RUNTIME) title/param.json title/icon0.png wads/DOOM1.WAD
+$(APP)/eboot.bin: $(PS5_DIR)/eboot.elf $(RUNTIME) sce_sys/param.json sce_sys/icon0.png wads/DOOM1.WAD
 	rm -rf $(APP)
 	mkdir -p $(APP)/sce_sys $(APP)/sce_module $(APP)/wads
 	$(NATIVE_TOOL) self --sign --in $< --out $@ --magic 0x1D3D154F
 	cp $(RUNTIME) $(APP)/sce_module/libc.prx
-	cp title/param.json title/icon0.png $(APP)/sce_sys/
+	cp sce_sys/param.json sce_sys/icon0.png $(APP)/sce_sys/
 	cp wads/DOOM1.WAD $(APP)/wads/doom1.wad
 	mkdir -p $(APP)/licenses
 	cp LICENSE $(APP)/licenses/DOOM-GPL-2.0.txt

@@ -22,7 +22,7 @@ liblzma, zlib) and the build tools listed at the end.
 | `src/host/` | Headless Linux backend for testing on the PC: PNG frames, scripted pad, WAV audio, libcurl HTTP |
 | `third_party/` | Build configuration for libarchive, liblzma and zlib (`config.h` files and `third_party.mk`); the sources are fetched, not copied |
 | `test/` | `render_music` (MUS lump to WAV), `present_preview` (runs the GPU kernel's math on the CPU) and the console test plans |
-| `title/` | `param.json` and the icon (the shareware WAD's `M_DOOM` logo, scaled 3x on black) |
+| `sce_sys/` | `param.json` (raise `contentVersion` in every release) and the icon (the shareware WAD's `M_DOOM` logo, scaled 3x on black) |
 | `tools/` | Tool, library and shareware WAD fetch, kernel embedding, deploy, console test runner |
 
 ## Build
