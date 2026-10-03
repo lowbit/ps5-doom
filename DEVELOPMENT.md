@@ -22,7 +22,7 @@ liblzma, zlib) and the build tools listed at the end.
 | `src/host/` | Headless Linux backend for testing on the PC: PNG frames, scripted pad, WAV audio, libcurl HTTP |
 | `third_party/` | Build configuration for libarchive, liblzma and zlib (`config.h` files and `third_party.mk`); the sources are fetched, not copied |
 | `test/` | `render_music` (MUS lump to WAV), `present_preview` (runs the GPU kernel's math on the CPU) and the console test plans |
-| `title/` | `param.json` and the icon |
+| `title/` | `param.json` and the icon (the shareware WAD's `M_DOOM` logo, scaled 3x on black) |
 | `tools/` | Tool, library and shareware WAD fetch, kernel embedding, deploy, console test runner |
 
 ## Build
@@ -97,6 +97,8 @@ Saves are per game: `<save dir>/<iwad name>sav<slot>.dsg` (for example `doom2sav
 `uv run --no-project python tools/deploy.py` uploads `dist/PPSA99666` to `/data/homebrew/PPSA99666`
 (PS5Upload helper must be running), where ShadowMountPlus registers it. Uploading adds and replaces
 files but never deletes, so files dropped from the package stay on the console until removed.
+ShadowMountPlus copies `sce_sys` (icon, `param.json`) into `/user/appmeta/PPSA99666` and
+`/user/app/PPSA99666` only when it first installs the title; a new icon has to be copied there too.
 `make release` writes `dist/PPSA99666.zip` and its `.sha256`.
 
 The app is sandboxed: it reads and writes `/app0` (its folder; imports land in `/app0/wads`) and
@@ -116,7 +118,8 @@ app listens on 9119; the PC firewall blocks the other direction), de-tiles them 
 `build/test/run/`, receives `doom.log` over the same connection when the game exits, prints it and
 deletes `test.cfg`. Plan lines: `input <steps>`, `capture <frames>`, `frames <N>` (clean exit),
 `present cpu`, `game <file>` (skip the launcher), `text <value>` (answer the keyboard prompt
-without opening it). Plans: `console-play.cfg` (menus, play, save, load), `console-cpu.cfg`,
+without opening it), `reset` (delete the app's saved data in `/download0` first, for a first-run
+state; `console-reset.cfg` does only that). Plans: `console-play.cfg` (menus, play, save, load), `console-cpu.cfg`,
 `console-soak.cfg` (6 minutes), `console-import.cfg` (launcher, notice, folder listing and a 7Z
 import from `http://192.168.0.10:8666/`), `console-autoimport.cfg`, `console-tnt.cfg`,
 `console-ultimate.cfg`.

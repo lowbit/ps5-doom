@@ -99,6 +99,18 @@ int ps5_test_cpu_present(void)
     return test_cpu_present;
 }
 
+static void remove_saved(const char *name, void *user)
+{
+    char path[256];
+
+    (void)user;
+    if (!strcmp(name, "doom.log"))
+        return;
+    snprintf(path, sizeof(path), "%s/%s", SAVE_DIR, name);
+    if (unlink(path) == 0)
+        plat_log("ps5: removed %s\n", path);
+}
+
 static void load_test_plan(void)
 {
     static char text[TEST_PLAN_BYTES];
@@ -130,6 +142,8 @@ static void load_test_plan(void)
             test_plan_set_game(line + 5);
         else if (!strncmp(line, "text ", 5))
             test_plan_set_text(line + 5);
+        else if (!strcmp(line, "reset"))
+            plat_list_dir(SAVE_DIR, remove_saved, NULL);
     }
     plat_log("ps5: test plan loaded\n");
 }
