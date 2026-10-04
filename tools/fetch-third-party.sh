@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Downloads the archive libraries the importer is built from (libarchive, xz's liblzma, zlib) and checks them.
+# Downloads the libraries built into the launcher and checks them: libarchive, xz's liblzma and zlib
+# for the importer, qrcodegen for the address shown on the upload screen.
 set -euo pipefail
 
-out=${1:-.deps/archive}
+out=${1:-.deps/third-party}
 mkdir -p "$out"
 
 fetch() {
@@ -37,3 +38,4 @@ fetch xz-5.8.4 0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9 
 fetch zlib-1.3.2 bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16 \
   https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz \
   https://zlib.net/zlib-1.3.2.tar.gz
+fetch QR-Code-generator-1.8.0 2ec0a4d33d6f521c942eeaf473d42d5fe139abcfa57d2beffe10c5cf7d34ae60   https://github.com/nayuki/QR-Code-generator/archive/refs/tags/v1.8.0.tar.gz   https://codeload.github.com/nayuki/QR-Code-generator/tar.gz/refs/tags/v1.8.0

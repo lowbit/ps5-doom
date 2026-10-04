@@ -25,6 +25,9 @@ void screen_text(int x, int y, const char *text, ink_t ink, int scale);
 void screen_text_center(int y, const char *text, ink_t ink, int scale);
 void screen_text_fit(int x, int y, int width, const char *text, ink_t ink, int keep_end);
 int screen_wrap(int x, int y, int width, const char *text, ink_t ink);
+// Draws text as a QR code with a white border, each module a square of the given size; returns its
+// width in pixels, or 0 when the text does not fit.
+int screen_qr(int x, int y, const char *text, int module);
 void screen_present(void);
 
 #endif

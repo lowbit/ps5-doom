@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Send games to DOOM</title>
+<style>
+  :root {
+    --bg: #121010;
+    --panel: #1d1817;
+    --line: #3a2d2a;
+    --text: #eee6e2;
+    --muted: #a99a95;
+    --red: #d6362b;
+    --green: #58c26e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0.02em; }
+  h1 span { color: var(--red); }
+  h2 { margin: 32px 0 8px; font-size: 18px; }
+  p { margin: 0 0 16px; color: var(--muted); }
+  #drop {
+    display: block;
+    padding: 40px 16px;
+    border: 2px dashed var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    text-align: center;
+    cursor: pointer;
+  }
+  #drop.over { border-color: var(--red); }
+  #drop strong { display: block; font-size: 20px; }
+  #drop span { color: var(--muted); }
+  #drop input { display: none; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  #files li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 16px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  #files .name { overflow-wrap: anywhere; }
+  #files .state { color: var(--muted); text-align: right; }
+  #files .ok .state { color: var(--green); }
+  #files .bad .state { color: var(--red); }
+  progress { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--red); }
+  #log li { padding: 4px 0; }
+  #log .ok::before { content: "\2713  "; color: var(--green); }
+  #log .bad::before { content: "\2717  "; color: var(--red); }
+  #offline {
+    display: none;
+    margin: 16px 0;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #3a1714;
+  }
+  body.offline #offline { display: block; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Send games to <span>DOOM</span></h1>
+  <p>Drop the game files you own: DOOM.WAD, DOOM2.WAD, TNT.WAD, PLUTONIA.WAD or Freedoom, or ZIP,
+    7Z and RAR files with them inside. Whole folders work too; other files are left out.</p>
+  <div id="offline">The console is not listening. On the PS5, open DOOM, then Add games, then Send
+    from PC or phone.</div>
+  <label id="drop">
+    <input type="file" multiple accept=".wad,.zip,.7z,.rar">
+    <strong>Drop files or folders here</strong>
+    <span>or click to choose files</span>
+  </label>
+  <ul id="files"></ul>
+  <h2>On the console</h2>
+  <ul id="log"><li id="empty">Nothing yet.</li></ul>
+</main>
+<script>
+  const accepted = /\.(wad|zip|7z|rar)$/i;
+  const drop = document.getElementById("drop");
+  const picker = drop.querySelector("input");
+  const files = document.getElementById("files");
+  const log = document.getElementById("log");
+  const queue = [];
+  let busy = false;
+  let lastNote = 0;
+
+  function addLog(text, ok) {
+    document.getElementById("empty")?.remove();
+    const item = document.createElement("li");
+    item.className = ok ? "ok" : "bad";
+    item.textContent = text;
+    log.appendChild(item);
+  }
+
+  function row(name, state, className) {
+    const item = document.createElement("li");
+    item.innerHTML = '<span class="name"></span><span class="state"></span>';
+    item.querySelector(".name").textContent = name;
+    item.querySelector(".state").textContent = state;
+    item.className = className;
+    files.appendChild(item);
+    return item;
+  }
+
+  function add(list) {
+    const left = [...list].filter((file) => !accepted.test(file.name));
+    for (const file of list) {
+      if (!accepted.test(file.name)) continue;
+      const item = row(file.name, "Waiting", "");
+      item.appendChild(Object.assign(document.createElement("progress"), { max: 1, value: 0 }));
+      queue.push({ file, item });
+    }
+    // A dropped folder can hold many other files; past a few they are summed up in one line.
+    if (left.length > 3) {
+      row(`${left.length} other files`, "Left out: not WAD, ZIP, 7Z or RAR", "bad");
+    } else {
+      for (const file of left) row(file.name, "Left out: not WAD, ZIP, 7Z or RAR", "bad");
+    }
+    next();
+  }
+
+  function next() {
+    if (busy || !queue.length) return;
+    busy = true;
+    const { file, item } = queue.shift();
+    const state = item.querySelector(".state");
+    const bar = item.querySelector("progress");
+    const started = performance.now();
+    const request = new XMLHttpRequest();
+
+    const finish = (ok, text) => {
+      item.className = ok ? "ok" : "bad";
+      state.textContent = text;
+      if (ok) bar.value = 1;
+      busy = false;
+      poll();
+      next();
+    };
+
+    request.open("PUT", "/upload/" + encodeURIComponent(file.name));
+    request.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      const seconds = (performance.now() - started) / 1000;
+      const speed = seconds > 0 ? event.loaded / seconds / 1048576 : 0;
+      bar.value = event.loaded / event.total;
+      state.textContent = `${Math.floor(100 * event.loaded / event.total)}%, ${speed.toFixed(1)} MB/s`;
+    };
+    request.onload = () => finish(request.status === 200, request.status === 200 ? "Sent" : request.responseText || "Failed");
+    request.onerror = () => finish(false, "Lost the connection to the console");
+    state.textContent = "Sending";
+    request.send(file);
+  }
+
+  // Folders arrive as entries that have to be walked; the entries must be taken before the
+  // first await, while the drop event is still being handled.
+  async function dropped(items) {
+    const entries = [...items].map((item) => item.webkitGetAsEntry && item.webkitGetAsEntry()).filter(Boolean);
+    const found = [];
+    const walk = async (entry) => {
+      if (entry.isFile) {
+        found.push(await new Promise((resolve, reject) => entry.file(resolve, reject)));
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        for (;;) {
+          const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+          if (!batch.length) break;
+          for (const child of batch) await walk(child);
+        }
+      }
+    };
+    for (const entry of entries) await walk(entry);
+    return found;
+  }
+
+  async function poll() {
+    // The console answers one request at a time, so it is asked only between uploads.
+    if (busy) return;
+    try {
+      const response = await fetch("/status?after=" + lastNote, { cache: "no-store" });
+      const status = await response.json();
+      for (const note of status.notes) {
+        lastNote = note.id;
+        addLog(note.text, note.ok);
+      }
+      document.body.classList.remove("offline");
+    } catch {
+      document.body.classList.add("offline");
+    }
+  }
+
+  // The whole page takes drops, so a file let go next to the box is not opened by the browser.
+  window.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    drop.classList.add("over");
+  });
+  window.addEventListener("dragleave", (event) => {
+    if (!event.relatedTarget) drop.classList.remove("over");
+  });
+  window.addEventListener("drop", async (event) => {
+    event.preventDefault();
+    drop.classList.remove("over");
+    const items = event.dataTransfer.items;
+    add(items && items.length && items[0].webkitGetAsEntry ? await dropped(items) : event.dataTransfer.files);
+  });
+  picker.addEventListener("change", () => {
+    add(picker.files);
+    picker.value = "";
+  });
+  setInterval(poll, 1500);
+  poll();
+</script>
+</body>
+</html>

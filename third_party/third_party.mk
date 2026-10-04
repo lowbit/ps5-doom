@@ -1,8 +1,9 @@
-ARCHIVE_DEPS := .deps/archive
-ARCHIVE_STAMP := $(ARCHIVE_DEPS)/zlib-1.3.2/.complete
-LA_DIR := $(ARCHIVE_DEPS)/libarchive-3.8.9/libarchive
-XZ_DIR := $(ARCHIVE_DEPS)/xz-5.8.4/src/liblzma
-ZL_DIR := $(ARCHIVE_DEPS)/zlib-1.3.2
+THIRD_DEPS := .deps/third-party
+THIRD_STAMP := $(THIRD_DEPS)/QR-Code-generator-1.8.0/.complete
+LA_DIR := $(THIRD_DEPS)/libarchive-3.8.9/libarchive
+XZ_DIR := $(THIRD_DEPS)/xz-5.8.4/src/liblzma
+ZL_DIR := $(THIRD_DEPS)/zlib-1.3.2
+QR_DIR := $(THIRD_DEPS)/QR-Code-generator-1.8.0/c
 
 LA_SRC := $(addprefix $(LA_DIR)/, archive_read.c archive_read_set_options.c archive_options.c \
 	archive_util.c archive_string.c archive_string_sprintf.c archive_entry.c archive_check_magic.c \
@@ -21,21 +22,22 @@ XZ_SRC := $(addprefix $(XZ_DIR)/, common/common.c common/alone_decoder.c common/
 	simple/simple_decoder.c simple/x86.c simple/arm.c simple/armthumb.c simple/arm64.c \
 	simple/ia64.c simple/powerpc.c simple/sparc.c simple/riscv.c)
 ZL_SRC := $(addprefix $(ZL_DIR)/, adler32.c crc32.c inffast.c inflate.c inftrees.c zutil.c)
-THIRD_SRC := $(LA_SRC) $(XZ_SRC) $(ZL_SRC)
+THIRD_SRC := $(LA_SRC) $(XZ_SRC) $(ZL_SRC) $(QR_DIR)/qrcodegen.c
 
-ARCHIVE_INCLUDES := -I$(LA_DIR)
+THIRD_INCLUDES := -I$(LA_DIR) -I$(QR_DIR)
 LA_FLAGS := -DHAVE_CONFIG_H -Ithird_party/libarchive -I$(LA_DIR) -I$(XZ_DIR)/api -I$(ZL_DIR)
 XZ_FLAGS := -DHAVE_CONFIG_H -Ithird_party/xz -I$(XZ_DIR)/api -I$(XZ_DIR)/common -I$(XZ_DIR)/check \
 	-I$(XZ_DIR)/lz -I$(XZ_DIR)/rangecoder -I$(XZ_DIR)/lzma -I$(XZ_DIR)/delta -I$(XZ_DIR)/simple \
 	-I$(XZ_DIR)/../common
 ZL_FLAGS := -I$(ZL_DIR)
+QR_FLAGS := -I$(QR_DIR)
 THIRD_FLAGS := -std=gnu11 -O2 -w -fno-strict-aliasing -DNDEBUG -Dmalloc=import_malloc \
 	-Dcalloc=import_calloc -Drealloc=import_realloc -Dfree=import_free -Dstrdup=import_strdup
 
-third_obj = $(patsubst $(ARCHIVE_DEPS)/%.c,$(1)/third_party/%.o,$(THIRD_SRC))
-third_flags = $(if $(findstring /libarchive-,$(1)),$(LA_FLAGS),$(if $(findstring /xz-,$(1)),$(XZ_FLAGS),$(ZL_FLAGS)))
+third_obj = $(patsubst $(THIRD_DEPS)/%.c,$(1)/third_party/%.o,$(THIRD_SRC))
+third_flags = $(if $(findstring /libarchive-,$(1)),$(LA_FLAGS),$(if $(findstring /xz-,$(1)),$(XZ_FLAGS),$(if $(findstring /QR-Code-,$(1)),$(QR_FLAGS),$(ZL_FLAGS))))
 
-$(THIRD_SRC): | $(ARCHIVE_STAMP)
+$(THIRD_SRC): | $(THIRD_STAMP)
 
-$(ARCHIVE_STAMP):
-	bash tools/fetch-archive-libs.sh $(ARCHIVE_DEPS)
+$(THIRD_STAMP):
+	bash tools/fetch-third-party.sh $(THIRD_DEPS)

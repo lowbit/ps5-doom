@@ -13,6 +13,7 @@
 #include "screen.h"
 #include "settings.h"
 #include "test_plan.h"
+#include "upload.h"
 
 #define FRAME_US 16667
 #define REPEAT_DELAY 18
@@ -24,6 +25,7 @@
 #define BROWSE_ROWS 12
 #define FOOTER_Y 188
 #define MB (1024.0 * 1024.0)
+#define SEND_LINES 4
 
 typedef enum
 {
@@ -32,6 +34,7 @@ typedef enum
     VIEW_NOTICE,
     VIEW_BROWSE,
     VIEW_IMPORT,
+    VIEW_SEND,
 } view_t;
 
 static game_list_t games;
@@ -49,6 +52,12 @@ static int frame, typing, understood, auto_import;
 static uint32_t held, pressed;
 static int repeat_timer, input_locked = 1;
 static const game_t *chosen;
+static int send_ready, send_added;
+static char send_lines[SEND_LINES][192];
+static int send_line_ok[SEND_LINES], send_line_count;
+static char send_archive[GAME_PATH + UPLOAD_NAME];
+
+static void start_send(void);
 
 static void read_input(void)
 {
@@ -231,14 +240,16 @@ static void add_view(void)
             {
                 url_clean(settings.url, sizeof(settings.url), text);
                 settings_save(&settings);
-                add_row = 1;
+                add_row = 2;
             }
         }
     }
     else
     {
-        move(&add_row, 3);
+        move(&add_row, 4);
         if ((pressed & PAD_CROSS) && add_row == 0)
+            start_send();
+        else if ((pressed & PAD_CROSS) && add_row == 1)
         {
             if (plat_text_open("Link to a WAD, ZIP, 7Z or RAR file, or a folder",
                                settings.url[0] ? settings.url : "http://") == 0)
@@ -246,7 +257,7 @@ static void add_view(void)
             else
                 set_status("The keyboard is not available", INK_RED);
         }
-        else if ((pressed & PAD_CROSS) && add_row == 1 && settings.url[0])
+        else if ((pressed & PAD_CROSS) && add_row == 2 && settings.url[0])
         {
             if (settings.accepted)
             {
@@ -262,31 +273,30 @@ static void add_view(void)
                 view = VIEW_NOTICE;
             }
         }
-        else if (((pressed & PAD_CROSS) && add_row == 2) || (pressed & PAD_CIRCLE))
+        else if (((pressed & PAD_CROSS) && add_row == 3) || (pressed & PAD_CIRCLE))
             view = VIEW_GAMES;
     }
 
     screen_background();
     screen_text_center(6, "Add games", INK_GOLD, 2);
     y = screen_wrap(16, 28, SCREEN_WIDTH - 32,
-                    "Copy game WADs, or ZIP, 7Z or RAR files with them inside, to this folder, "
-                    "for example over FTP:", INK_RED);
-    screen_text_fit(16, y + 1, SCREEN_WIDTH - 32, plat_wad_folder(), INK_GOLD, 1);
-    y = screen_wrap(16, y + 12, SCREEN_WIDTH - 32, "Doom adds them the next time it starts.", INK_RED);
-    y = screen_wrap(16, y + 3, SCREEN_WIDTH - 32,
-                    "DOOM.WAD DOOM2.WAD TNT.WAD PLUTONIA.WAD DOOMU.WAD FREEDOOM1.WAD FREEDOOM2.WAD",
-                    INK_GRAY);
-    y = screen_wrap(16, y + 5, SCREEN_WIDTH - 32,
-                    "Or download a WAD, ZIP, 7Z or RAR, or a folder your PC shares over HTTP:", INK_RED);
+                    "DOOM.WAD, DOOM2.WAD, TNT.WAD, PLUTONIA.WAD or Freedoom, on their own or inside "
+                    "ZIP, 7Z or RAR files.", INK_GRAY);
+    draw_row(30, y + 6, "Send from PC or phone", add_row == 0, 1);
+    y = screen_wrap(16, y + 6 + ROW + 6, SCREEN_WIDTH - 32,
+                    "Or download a file, or a folder your PC shares over HTTP:", INK_RED);
     snprintf(line, sizeof(line), "Link: %s", settings.url[0] ? settings.url : "not set");
-    if (add_row == 0)
+    if (add_row == 1)
         screen_skull(16, y + 4, frame / SKULL_FRAMES);
-    screen_text_fit(30, y + 6, SCREEN_WIDTH - 46, line, add_row == 0 ? INK_WHITE : INK_RED, 1);
-    draw_row(30, y + 6 + ROW, "Download", add_row == 1, settings.url[0] != 0);
-    draw_row(30, y + 6 + ROW * 2, "Back", add_row == 2, 1);
+    screen_text_fit(30, y + 6, SCREEN_WIDTH - 46, line, add_row == 1 ? INK_WHITE : INK_RED, 1);
+    draw_row(30, y + 6 + ROW, "Download", add_row == 2, settings.url[0] != 0);
+    draw_row(30, y + 6 + ROW * 2, "Back", add_row == 3, 1);
+    y = screen_wrap(16, y + 6 + ROW * 3 + 4, SCREEN_WIDTH - 32,
+                    "Or copy them over FTP or USB to this folder; Doom adds them when it starts:", INK_RED);
+    screen_text_fit(16, y + 1, SCREEN_WIDTH - 32, plat_wad_folder(), INK_GOLD, 1);
     draw_status(FOOTER_Y - 11, 0);
-    screen_text_center(FOOTER_Y, add_row == 0 ? GLYPH_CROSS " edit link    " GLYPH_CIRCLE " back"
-                                                 : GLYPH_CROSS " select    " GLYPH_CIRCLE " back", INK_GRAY, 1);
+    screen_text_center(FOOTER_Y, add_row == 1 ? GLYPH_CROSS " edit link    " GLYPH_CIRCLE " back"
+                                              : GLYPH_CROSS " select    " GLYPH_CIRCLE " back", INK_GRAY, 1);
 }
 
 static void notice_view(void)
@@ -412,6 +422,23 @@ static void finish_import(const import_status_t *status)
     auto_import = 0;
 }
 
+static void draw_bar(int y, long long done, long long total)
+{
+    char line[64];
+
+    screen_box(20, y, SCREEN_WIDTH - 40, 10, 0);
+    if (total > 0)
+    {
+        if (done > total)
+            done = total;
+        screen_box(22, y + 2, (int)((SCREEN_WIDTH - 44) * done / total), 6, 1);
+        snprintf(line, sizeof(line), "%.1f / %.1f MB", done / MB, total / MB);
+    }
+    else
+        snprintf(line, sizeof(line), "%.1f MB", done / MB);
+    screen_text(20, y + 16, line, INK_RED, 1);
+}
+
 static void draw_progress(const import_status_t *status)
 {
     char line[160];
@@ -424,17 +451,7 @@ static void draw_progress(const import_status_t *status)
         snprintf(line, sizeof(line), "File %d of %d", status->source_index + 1, status->source_count);
         screen_text(20, 64, line, INK_GRAY, 1);
     }
-    screen_box(20, 80, SCREEN_WIDTH - 40, 10, 0);
-    if (status->total > 0)
-    {
-        long long done = status->done < status->total ? status->done : status->total;
-
-        screen_box(22, 82, (int)((SCREEN_WIDTH - 44) * done / status->total), 6, 1);
-        snprintf(line, sizeof(line), "%.1f / %.1f MB", status->done / MB, status->total / MB);
-    }
-    else
-        snprintf(line, sizeof(line), "%.1f MB", status->done / MB);
-    screen_text(20, 96, line, INK_RED, 1);
+    draw_bar(80, status->done, status->total);
     if (status->current[0])
     {
         snprintf(line, sizeof(line), "Writing %s", status->current);
@@ -473,6 +490,206 @@ static void import_view(void)
     draw_progress(&status);
 }
 
+// Reports what happened to a sent file, on the screen and on the page.
+static void note(const char *text, int ok)
+{
+    plat_log("launcher: %s\n", text);
+    upload_note(text, ok);
+    if (send_line_count == SEND_LINES)
+    {
+        memmove(send_lines, send_lines + 1, sizeof(send_lines[0]) * (SEND_LINES - 1));
+        memmove(send_line_ok, send_line_ok + 1, sizeof(send_line_ok[0]) * (SEND_LINES - 1));
+        send_line_count--;
+    }
+    snprintf(send_lines[send_line_count], sizeof(send_lines[0]), "%s", text);
+    send_line_ok[send_line_count++] = ok;
+}
+
+static void start_send(void)
+{
+    send_ready = upload_start(import_dir) == 0;
+    send_added = 0;
+    send_line_count = 0;
+    send_archive[0] = 0;
+    status_line[0] = 0;
+    view = VIEW_SEND;
+}
+
+static void leave_send(void)
+{
+    if (send_archive[0])
+    {
+        import_cancel();
+        import_finish();
+        unlink(send_archive);
+        send_archive[0] = 0;
+    }
+    upload_stop();
+    if (send_added)
+    {
+        char text[64];
+
+        snprintf(text, sizeof(text), "Added %d game%s", send_added, send_added == 1 ? "" : "s");
+        set_status(text, INK_GREEN);
+        game_row = 0;
+    }
+    view = send_added ? VIEW_GAMES : VIEW_ADD;
+}
+
+static void add_uploaded_wad(const char *path, const char *name)
+{
+    char target[GAME_PATH + 16], text[192];
+    const char *file = games_known_file(name);
+    const game_t *game;
+
+    if (!file || games_check_wad(path, NULL))
+    {
+        snprintf(text, sizeof(text), file ? "%s is not a valid game WAD" : "%s is not a game Doom knows",
+                 name);
+        note(text, 0);
+        unlink(path);
+        return;
+    }
+    snprintf(target, sizeof(target), "%s/%s", import_dir, file);
+    unlink(target);
+    if (rename(path, target))
+    {
+        snprintf(text, sizeof(text), "Cannot store %s on the console", name);
+        note(text, 0);
+        unlink(path);
+        return;
+    }
+    games_scan(&games);
+    game = games_find(&games, file);
+    snprintf(text, sizeof(text), "Added %s", game ? game->title : file);
+    note(text, 1);
+    send_added++;
+}
+
+// Takes the next file the upload server finished. Game WADs are moved into place; archives go
+// through the importer under their own name and are deleted once read.
+static void take_upload(void)
+{
+    char path[UPLOAD_PATH], name[UPLOAD_NAME], text[192], source[1][LINK_URL];
+    uint8_t magic[4] = {0};
+    int fd;
+
+    if (send_archive[0] || !upload_take(path, sizeof(path), name, sizeof(name)))
+        return;
+    if ((fd = open(path, O_RDONLY)) >= 0)
+    {
+        if (read(fd, magic, sizeof(magic)) != (ssize_t)sizeof(magic))
+            memset(magic, 0, sizeof(magic));
+        close(fd);
+    }
+    if (!memcmp(magic, "IWAD", 4))
+        add_uploaded_wad(path, name);
+    else if (!memcmp(magic, "PWAD", 4))
+    {
+        snprintf(text, sizeof(text), "%s is an add-on (pwad), not a game", name);
+        note(text, 0);
+        unlink(path);
+    }
+    else
+    {
+        snprintf(send_archive, sizeof(send_archive), "%s/%s", import_dir, name);
+        if (rename(path, send_archive))
+        {
+            snprintf(text, sizeof(text), "Cannot store %s on the console", name);
+            note(text, 0);
+            unlink(path);
+            send_archive[0] = 0;
+            return;
+        }
+        snprintf(source[0], LINK_URL, "%s", send_archive);
+        import_start(source, 1, import_dir);
+    }
+}
+
+static void check_archive_import(void)
+{
+    import_status_t status;
+    char text[256];
+    const char *name;
+
+    if (!send_archive[0])
+        return;
+    import_status(&status);
+    if (status.state == IMPORT_RUNNING)
+        return;
+    import_finish();
+    name = strrchr(send_archive, '/') + 1;
+    if (status.found_count)
+        snprintf(text, sizeof(text), "Added %s from %s", status.found, name);
+    else if (status.message[0])
+        snprintf(text, sizeof(text), "%s", status.message);
+    else
+        snprintf(text, sizeof(text), "No game WADs found in %s", name);
+    note(text, status.found_count > 0);
+    send_added += status.found_count;
+    unlink(send_archive);
+    send_archive[0] = 0;
+    games_scan(&games);
+}
+
+static void send_view(void)
+{
+    const char *address = upload_address();
+    upload_progress_t progress;
+    import_status_t status;
+    char line[UPLOAD_NAME + 32];
+    int y, x, size, i;
+
+    take_upload();
+    check_archive_import();
+    if (pressed & PAD_CIRCLE)
+    {
+        leave_send();
+        return;
+    }
+    upload_progress(&progress);
+
+    screen_background();
+    screen_text_center(6, "Send games", INK_GOLD, 2);
+    if (!send_ready || !address[0])
+        y = screen_wrap(16, 34, SCREEN_WIDTH - 32,
+                        !send_ready ? "The console could not start receiving files. Go back and try again."
+                                    : "The console has no network address. Connect it to your network, "
+                                      "then open this screen again.",
+                        INK_RED) + 8;
+    else
+    {
+        size = screen_qr(16, 30, address, 3);
+        x = 16 + size + 12;
+        y = screen_wrap(x, 32, SCREEN_WIDTH - x - 12,
+                        "On a PC or phone on the same network, open this address or scan the code:", INK_RED);
+        screen_text_fit(x, y + 3, SCREEN_WIDTH - x - 12, address, INK_GOLD, 0);
+        y = screen_wrap(x, y + 18, SCREEN_WIDTH - x - 12,
+                        "Then drop your WAD, ZIP, 7Z or RAR files on the page.", INK_RED);
+        y = y > 30 + size ? y + 8 : 30 + size + 8;
+    }
+
+    if (progress.receiving)
+    {
+        snprintf(line, sizeof(line), "Receiving %s", progress.name);
+        screen_text_fit(20, y, SCREEN_WIDTH - 40, line, INK_WHITE, 0);
+        draw_bar(y + 12, progress.done, progress.total);
+    }
+    else if (send_archive[0])
+    {
+        import_status(&status);
+        snprintf(line, sizeof(line), "Adding games from %s", strrchr(send_archive, '/') + 1);
+        screen_text_fit(20, y, SCREEN_WIDTH - 40, line, INK_WHITE, 0);
+        draw_bar(y + 12, status.done, status.total);
+    }
+    else
+        for (i = 0; i < send_line_count; i++)
+            screen_text_fit(20, y + i * LINE_HEIGHT, SCREEN_WIDTH - 40, send_lines[i],
+                            send_line_ok[i] ? INK_GREEN : INK_RED, 0);
+    screen_text_center(FOOTER_Y, progress.receiving || send_archive[0] ? GLYPH_CIRCLE " stop and go back"
+                                                                        : GLYPH_CIRCLE " back", INK_GRAY, 1);
+}
+
 static const game_t *preselected(void)
 {
     const game_t *game = games_find(&games, test_plan_game());
@@ -509,7 +726,7 @@ const game_t *launcher_choose(void)
     while (!chosen)
     {
         read_input();
-        if (view != VIEW_IMPORT && pressed)
+        if (view != VIEW_IMPORT && view != VIEW_SEND && pressed)
             status_line[0] = 0;
         switch (view)
         {
@@ -527,6 +744,9 @@ const game_t *launcher_choose(void)
             break;
         case VIEW_IMPORT:
             import_view();
+            break;
+        case VIEW_SEND:
+            send_view();
             break;
         }
         if (!chosen)

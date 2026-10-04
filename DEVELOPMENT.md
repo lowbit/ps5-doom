@@ -6,7 +6,8 @@ DualSense through ScePad and playing sound through AudioOut. Title ID `PPSA99666
 
 All PS5, platform, audio, launcher and test code here is written for this project. The external
 code is id's game source, the archive libraries the importer is built from (libarchive, xz's
-liblzma, zlib) and the build tools listed at the end.
+liblzma, zlib), the QR code library of the send screen (qrcodegen) and the build tools listed at
+the end.
 
 ## Layout
 
@@ -14,16 +15,16 @@ liblzma, zlib) and the build tools listed at the end.
 | --- | --- |
 | `src/doom/` | id's original game code with the 64-bit and portability fixes listed below |
 | `src/port/` | Doom's `i_*` layer (main, system, video, sound, network, controller mapping) on top of the platform API, and the button glyphs shared with the launcher |
-| `src/launcher/` | The game list shown before the engine starts: IWAD discovery, settings, Doom-style drawing from the bundled WAD, HTML folder listings, and the importer (HTTP or local file, WAD or ZIP/7Z/RAR) |
+| `src/launcher/` | The game list shown before the engine starts: IWAD discovery, settings, Doom-style drawing from the bundled WAD, HTML folder listings, the importer (HTTP or local file, WAD or ZIP/7Z/RAR), and the send screen's HTTP server and web page (`upload.c`, `upload.html`) |
 | `src/platform/platform.h` | The platform API: time, log, files and folder listing, video present, pad, rumble, audio output, HTTP, text input |
 | `src/audio/` | Sound engine: SFX mixer, MUS sequencer with DMX-style voice allocation, OPL FM synth |
 | `src/ps5/` | PS5 backend: startup (`crt0.c`), system, VideoOut, AGC compute presenter, pad, AudioOut, `sceHttp`, the IME keyboard |
 | `src/ps5/present.cl` | GPU kernel: palette lookup, sharp-bilinear scaling to 1080p, tiled scanout writes (gfx1010, wave64) |
 | `src/host/` | Headless Linux backend for testing on the PC: PNG frames, scripted pad, WAV audio, libcurl HTTP |
-| `third_party/` | Build configuration for libarchive, liblzma and zlib (`config.h` files and `third_party.mk`); the sources are fetched, not copied |
+| `third_party/` | Build configuration for libarchive, liblzma, zlib and qrcodegen (`config.h` files and `third_party.mk`); the sources are fetched, not copied |
 | `test/` | `render_music` (MUS lump to WAV), `present_preview` (runs the GPU kernel's math on the CPU) and the console test plans |
 | `sce_sys/` | `param.json` (raise `contentVersion` in every release) and the icon (the shareware WAD's `M_DOOM` logo, scaled 3x on black) |
-| `tools/` | Tool, library and shareware WAD fetch, kernel embedding, deploy, console test runner |
+| `tools/` | Tool, library and shareware WAD fetch, kernel and page embedding, deploy, console test runner, `send.py` (sends files to the send screen like its page) |
 
 ## Build
 
@@ -35,7 +36,7 @@ docker build -t ps5-doom-build docker/
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(cygpath -w "$PWD"):/src" -w /src ps5-doom-build make -j16 ps5 host
 ```
 
-`make ps5` fetches the pinned tools, the archive libraries (`tools/fetch-archive-libs.sh`) and the
+`make ps5` fetches the pinned tools, the libraries (`tools/fetch-third-party.sh`) and the
 shareware WAD on first use, then:
 
 1. compiles the game, the launcher and the PS5 layer for `x86_64-sie-ps5` against the PS5 payload
@@ -88,7 +89,14 @@ and maps the chosen game to Doom's game mode, mission and language. The launcher
   is read through or re-read from the start instead;
 - writes into the first writable WAD folder (`/app0/wads` on the console), through a `.part` file
   that is checked as an IWAD before it is renamed;
-- shows a one-time notice with a checkbox before the first download.
+- shows a one-time notice with a checkbox before the first download;
+- receives files from a browser on the send screen (*Add games*, *Send from PC or phone*):
+  `upload.c` listens only while that screen is open, on port 9666 or the next free one, serves
+  `upload.html` (embedded at build time by `tools/embed-file.py`) and stores each `PUT /upload/<name>`
+  as `<name>.upload` in the WAD folder. The launcher moves game WADs into place, runs archives
+  through the importer and deletes them afterwards, and reports each result on the screen and to the
+  page, which polls `GET /status`. The address shown is the one the route to the internet leaves
+  from (a connected UDP socket's local address); the QR code is drawn with qrcodegen.
 
 Saves are per game: `<save dir>/<iwad name>sav<slot>.dsg` (for example `doom2sav0.dsg`).
 
@@ -122,7 +130,8 @@ without opening it), `reset` (delete the app's saved data in `/download0` first,
 state; `console-reset.cfg` does only that). Plans: `console-play.cfg` (menus, play, save, load), `console-cpu.cfg`,
 `console-soak.cfg` (6 minutes), `console-import.cfg` (launcher, notice, folder listing and a 7Z
 import from `http://192.168.0.10:8666/`), `console-autoimport.cfg`, `console-tnt.cfg`,
-`console-ultimate.cfg`.
+`console-ultimate.cfg`, `console-send.cfg` (opens the send screen for a minute; run
+`tools/send.py <address> <files>` meanwhile).
 
 ## PS5 facts learned on hardware (FW 13.00)
 
@@ -136,6 +145,8 @@ import from `http://192.168.0.10:8666/`), `console-autoimport.cfg`, `console-tnt
   plus `sceKernelGetdents` (8-byte records: 32-bit inode, 16-bit length, type, name length). Saves
   use explicit `/download0/...` paths; output is captured by pointing `stdout`/`stderr` at a pipe
   (`fdopen`), and klog wants one line per `sceKernelDebugOutText`.
+- A title can listen on TCP ports, but the sandbox refuses some with `EACCES` (8666 and 50000 of
+  those tried; 8000, 9000, 9090, 9666, 18666 and 30000 work). BSD sockets come from `libkernel`.
 - `sceHttp` with `sceSsl` works in the sandboxed title, plain and HTTPS, including `Range` request
   headers added with `sceHttpAddRequestHeader` (answers 206). `sceHttpReadData` returns only when
   the buffer is full or the body ends. About 12 MB/s from a PC on the same wired network.
@@ -203,7 +214,8 @@ id's keyboard help (`HELP1`, `HELP`); DOOM II keeps its *Read This!* entry whene
   `b1315a9`: its `ps5-native-tool` (PIE to PS5 module, FSELF signing), its clean-room `libc.prx`,
   its intermediate PIE linker script, and the PS5 payload SDK v0.42 it fetches. Built in
   `.deps/native-app` by `tools/fetch-native-tools.sh`; nothing from it is copied into `src/`.
-- [libarchive](https://www.libarchive.org/) 3.8.9, [xz](https://tukaani.org/xz/) 5.8.4 (liblzma)
-  and [zlib](https://zlib.net/) 1.3.2, fetched and checked by `tools/fetch-archive-libs.sh` into
-  `.deps/archive` and compiled into the game for both targets.
+- [libarchive](https://www.libarchive.org/) 3.8.9, [xz](https://tukaani.org/xz/) 5.8.4 (liblzma),
+  [zlib](https://zlib.net/) 1.3.2 and [qrcodegen](https://www.nayuki.io/page/qr-code-generator-library)
+  1.8.0, fetched and checked by `tools/fetch-third-party.sh` into `.deps/third-party` and compiled
+  into the game for both targets.
 - clang/lld/llvm 18 (x86_64-sie-ps5 and amdgcn targets).

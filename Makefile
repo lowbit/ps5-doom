@@ -6,7 +6,8 @@ PS5_SRC := $(wildcard src/ps5/*.c)
 
 include third_party/third_party.mk
 
-INCLUDES := -Isrc/doom -Isrc/port -Isrc/platform -Isrc/audio -Isrc/launcher $(ARCHIVE_INCLUDES)
+GEN := build/gen
+INCLUDES := -Isrc/doom -Isrc/port -Isrc/platform -Isrc/audio -Isrc/launcher -I$(GEN) $(THIRD_INCLUDES)
 DOOM_WARNINGS := -Wall -Wno-unused-const-variable -Wno-unused-but-set-variable \
 	-Wno-unused-variable -Wno-logical-not-parentheses -Wno-missing-braces
 OWN_WARNINGS := -Wall -Wextra -Wno-unused-parameter
@@ -52,11 +53,17 @@ $(HOST_DIR)/%.o: src/%.c
 	@mkdir -p $(dir $@)
 	$(HOST_CC) -std=gnu11 $(HOST_FLAGS) $(OWN_WARNINGS) $(INCLUDES) -c $< -o $@
 
-$(HOST_DIR)/third_party/%.o: $(ARCHIVE_DEPS)/%.c
+$(HOST_DIR)/third_party/%.o: $(THIRD_DEPS)/%.c
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(THIRD_FLAGS) -g -MMD -MP $(call third_flags,$<) -c $< -o $@
 
-$(HOST_OWN_OBJ): | $(ARCHIVE_STAMP)
+$(HOST_OWN_OBJ): | $(THIRD_STAMP)
+
+$(GEN)/upload_page.h: src/launcher/upload.html tools/embed-file.py
+	@mkdir -p $(GEN)
+	python3 tools/embed-file.py $< upload_page $@
+
+$(HOST_DIR)/launcher/upload.o $(PS5_DIR)/launcher/upload.o: $(GEN)/upload_page.h
 
 tools: $(NATIVE_TOOL)
 
@@ -95,11 +102,11 @@ $(PS5_DIR)/%.o: src/%.c $(SDK)/target/lib/libkernel.so
 	@mkdir -p $(dir $@)
 	$(PS5_CC) -std=gnu11 $(PS5_FLAGS) $(OWN_WARNINGS) $(INCLUDES) -I$(PS5_GEN) -c $< -o $@
 
-$(PS5_DIR)/third_party/%.o: $(ARCHIVE_DEPS)/%.c $(SDK)/target/lib/libkernel.so
+$(PS5_DIR)/third_party/%.o: $(THIRD_DEPS)/%.c $(SDK)/target/lib/libkernel.so
 	@mkdir -p $(dir $@)
 	$(PS5_CC) $(THIRD_FLAGS) -MMD -MP $(call third_flags,$<) -c $< -o $@
 
-$(PS5_OWN_OBJ): | $(ARCHIVE_STAMP)
+$(PS5_OWN_OBJ): | $(THIRD_STAMP)
 
 $(PS5_DIR)/llvm-pie.elf: $(PS5_OBJ) $(AGC_STUBS) src/ps5/symbols.map
 	$(SDK)/bin/prospero-lld -T $(NATIVE)/tooling/native/ps5-pie.ld --eh-frame-hdr --gc-sections \
@@ -124,6 +131,7 @@ $(APP)/eboot.bin: $(PS5_DIR)/eboot.elf $(RUNTIME) sce_sys/param.json sce_sys/ico
 	cp $(LA_DIR)/../COPYING $(APP)/licenses/libarchive.txt
 	cp $(XZ_DIR)/../../COPYING.0BSD $(APP)/licenses/liblzma.txt
 	cp $(ZL_DIR)/LICENSE $(APP)/licenses/zlib.txt
+	head -n 22 $(QR_DIR)/qrcodegen.c > $(APP)/licenses/qrcodegen.txt
 	$(NATIVE_TOOL) self --inspect --file $@
 	$(NATIVE_TOOL) self --inspect --file $(APP)/sce_module/libc.prx
 

@@ -9,6 +9,7 @@
 
 #include "glyphs.h"
 #include "platform.h"
+#include "qrcodegen.h"
 #include "screen.h"
 
 #define FONT_FIRST '!'
@@ -19,6 +20,8 @@
 #define BACKGROUND_SHADE 29
 #define COLORMAP_SIZE (34 * 256)
 #define MAX_PATCH_HEIGHT 256
+#define QR_VERSION_MAX 5
+#define QR_QUIET 2
 
 static uint8_t pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
 static uint32_t palette[256];
@@ -27,7 +30,7 @@ static uint8_t shade[256];
 static uint8_t inks[INKS][256];
 static uint8_t *font[FONT_COUNT];
 static uint8_t *title, *logo, *skulls[2];
-static uint8_t outline_color, fill_color;
+static uint8_t outline_color, fill_color, paper_color, ink_color;
 
 static uint32_t le32(const uint8_t *p)
 {
@@ -101,6 +104,8 @@ static void build_inks(void)
     }
     outline_color = nearest(150, 150, 150);
     fill_color = nearest(190, 30, 30);
+    paper_color = nearest(255, 255, 255);
+    ink_color = nearest(0, 0, 0);
 }
 
 int screen_init(const char *wad_path)
@@ -332,6 +337,41 @@ int screen_wrap(int x, int y, int width, const char *text, ink_t ink)
             text++;
     }
     return y;
+}
+
+static void fill(int x, int y, int width, int height, uint8_t color)
+{
+    int i, j;
+
+    for (j = y; j < y + height; j++)
+        for (i = x; i < x + width; i++)
+            if (i >= 0 && i < SCREEN_WIDTH && j >= 0 && j < SCREEN_HEIGHT)
+                pixels[j * SCREEN_WIDTH + i] = color;
+}
+
+int screen_qr(int x, int y, const char *text, int module)
+{
+    static char encoded[128];
+    static uint8_t code[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_VERSION_MAX)];
+    static int ready;
+    uint8_t scratch[qrcodegen_BUFFER_LEN_FOR_VERSION(QR_VERSION_MAX)];
+    int size, i, j;
+
+    if (strcmp(encoded, text))
+    {
+        snprintf(encoded, sizeof(encoded), "%s", text);
+        ready = qrcodegen_encodeText(text, scratch, code, qrcodegen_Ecc_MEDIUM, qrcodegen_VERSION_MIN,
+                                     QR_VERSION_MAX, qrcodegen_Mask_AUTO, true);
+    }
+    if (!ready)
+        return 0;
+    size = qrcodegen_getSize(code);
+    fill(x, y, (size + 2 * QR_QUIET) * module, (size + 2 * QR_QUIET) * module, paper_color);
+    for (j = 0; j < size; j++)
+        for (i = 0; i < size; i++)
+            if (qrcodegen_getModule(code, i, j))
+                fill(x + (QR_QUIET + i) * module, y + (QR_QUIET + j) * module, module, module, ink_color);
+    return (size + 2 * QR_QUIET) * module;
 }
 
 void screen_present(void)
