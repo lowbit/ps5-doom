@@ -15,6 +15,7 @@
 #include "games.h"
 #include "import.h"
 #include "platform.h"
+#include "url.h"
 
 #define CHUNK (256 * 1024)
 #define PEEK (64 * 1024)
@@ -25,6 +26,7 @@ typedef struct
 {
     int remote;
     const char *url;
+    char final_url[LINK_URL]; // where url led after redirects
     plat_http_t *http;
     int fd;
     long long position, size;
@@ -96,12 +98,14 @@ static int open_remote(source_t *s, long long offset)
     char error[128];
 
     plat_http_close(s->http);
-    s->http = plat_http_get(s->url, (uint64_t)offset, &info, error, sizeof(error));
+    s->http = plat_http_get(s->final_url[0] ? s->final_url : s->url, (uint64_t)offset, &info, error,
+                            sizeof(error));
     if (!s->http)
     {
         fail("%s", error);
         return -1;
     }
+    snprintf(s->final_url, sizeof(s->final_url), "%s", info.url);
     if (info.status == 206)
     {
         s->ranges = 1;
@@ -335,7 +339,7 @@ static int read_listing(source_t *s)
     while (used < LISTING_LIMIT && (got = raw_read(s, html + used, LISTING_LIMIT - used)) > 0)
         used += got;
     html[used] = 0;
-    url_directory(base, sizeof(base), s->url);
+    url_directory(base, sizeof(base), s->final_url);
     listing_parse(&listing, base, html, (size_t)used);
     free(html);
     pthread_mutex_lock(&lock);

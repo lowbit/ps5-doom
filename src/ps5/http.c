@@ -5,6 +5,7 @@
 
 #include "platform.h"
 #include "sce.h"
+#include "url.h"
 
 #define NET_POOL (1024 * 1024)
 #define SSL_POOL (304 * 1024)
@@ -13,6 +14,7 @@
 #define METHOD_GET 0
 #define HEADER_OVERWRITE 0
 #define TIMEOUT_US 15000000
+#define MAX_REDIRECTS 8
 #define VERIFY_FLAGS (0x01 | 0x04 | 0x08 | 0x10 | 0x20 | 0x80)
 
 struct plat_http
@@ -39,7 +41,7 @@ static int start_http(void)
     template_id = sceHttpCreateTemplate(http, "DOOM-PS5", HTTP_1_1, 0);
     if (template_id < 0)
         return template_id;
-    if ((result = sceHttpSetAutoRedirect(template_id, 1)) < 0 ||
+    if ((result = sceHttpSetAutoRedirect(template_id, 0)) < 0 ||
         (result = sceHttpSetResolveTimeOut(template_id, TIMEOUT_US)) < 0 ||
         (result = sceHttpSetConnectTimeOut(template_id, TIMEOUT_US)) < 0 ||
         (result = sceHttpSetSendTimeOut(template_id, TIMEOUT_US)) < 0 ||
@@ -65,13 +67,47 @@ static void header_value(int request, const char *name, char *out, size_t size)
     out[value_size] = 0;
 }
 
+static int send_get(plat_http_t *http, const char *url, uint64_t offset, int *status)
+{
+    char range[40];
+    int result;
+
+    http->connection = result = sceHttpCreateConnectionWithURL(template_id, url, 1);
+    if (result >= 0)
+        http->request = result = sceHttpCreateRequestWithURL(http->connection, METHOD_GET, url, 0);
+    if (result >= 0 && offset)
+    {
+        snprintf(range, sizeof(range), "bytes=%llu-", (unsigned long long)offset);
+        result = sceHttpAddRequestHeader(http->request, "Range", range, HEADER_OVERWRITE);
+    }
+    if (result >= 0)
+        result = sceHttpSendRequest(http->request, NULL, 0);
+    if (result >= 0)
+        result = sceHttpGetStatusCode(http->request, status);
+    return result;
+}
+
+static void drop_request(plat_http_t *http)
+{
+    if (http->request >= 0)
+        sceHttpDeleteRequest(http->request);
+    if (http->connection >= 0)
+        sceHttpDeleteConnection(http->connection);
+    http->request = http->connection = -1;
+}
+
+static int is_redirect(int status)
+{
+    return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+}
+
 plat_http_t *plat_http_get(const char *url, uint64_t offset, plat_http_info_t *info,
                            char *error, int error_size)
 {
     plat_http_t *http;
-    char range[40];
+    char location[sizeof(info->url)], next[sizeof(info->url)];
     uint64_t length = 0;
-    int status = 0, has_length = -1, result;
+    int status = 0, has_length = -1, redirects, result;
 
     pthread_mutex_lock(&lock);
     result = template_id < 0 ? start_http() : 0;
@@ -85,19 +121,23 @@ plat_http_t *plat_http_get(const char *url, uint64_t offset, plat_http_info_t *i
     http = calloc(1, sizeof(*http));
     if (!http)
         return NULL;
-    http->request = -1;
-    http->connection = result = sceHttpCreateConnectionWithURL(template_id, url, 1);
-    if (result >= 0)
-        http->request = result = sceHttpCreateRequestWithURL(http->connection, METHOD_GET, url, 0);
-    if (result >= 0 && offset)
+    http->request = http->connection = -1;
+
+    // Redirects are followed here rather than by sceHttp, to learn the address the request ends
+    // up at: a folder listing's relative links are relative to that one.
+    snprintf(info->url, sizeof(info->url), "%s", url);
+    for (redirects = 0;; redirects++)
     {
-        snprintf(range, sizeof(range), "bytes=%llu-", (unsigned long long)offset);
-        result = sceHttpAddRequestHeader(http->request, "Range", range, HEADER_OVERWRITE);
+        result = send_get(http, info->url, offset, &status);
+        if (result < 0 || !is_redirect(status) || redirects == MAX_REDIRECTS)
+            break;
+        header_value(http->request, "Location", location, sizeof(location));
+        if (!location[0])
+            break;
+        url_resolve(next, sizeof(next), info->url, location);
+        snprintf(info->url, sizeof(info->url), "%s", next);
+        drop_request(http);
     }
-    if (result >= 0)
-        result = sceHttpSendRequest(http->request, NULL, 0);
-    if (result >= 0)
-        result = sceHttpGetStatusCode(http->request, &status);
     if (result < 0)
     {
         snprintf(error, error_size, "connection failed (0x%08x)", (unsigned)result);
@@ -130,9 +170,6 @@ void plat_http_close(plat_http_t *http)
 {
     if (!http)
         return;
-    if (http->request >= 0)
-        sceHttpDeleteRequest(http->request);
-    if (http->connection >= 0)
-        sceHttpDeleteConnection(http->connection);
+    drop_request(http);
     free(http);
 }

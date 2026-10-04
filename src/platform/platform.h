@@ -47,6 +47,7 @@ typedef struct
     int status;
     int64_t length;
     char type[64];
+    char url[768]; // where the request ended up after redirects
 } plat_http_info_t;
 
 typedef struct plat_http plat_http_t;

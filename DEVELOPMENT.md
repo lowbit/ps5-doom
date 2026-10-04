@@ -16,7 +16,7 @@ the end.
 | `src/doom/` | id's original game code with the 64-bit and portability fixes listed below |
 | `src/port/` | Doom's `i_*` layer (main, system, video, sound, network, controller mapping) on top of the platform API, and the button glyphs shared with the launcher |
 | `src/launcher/` | The game list shown before the engine starts: IWAD discovery, settings, Doom-style drawing from the bundled WAD, HTML folder listings, the importer (HTTP or local file, WAD or ZIP/7Z/RAR), and the send screen's HTTP server and web page (`upload.c`, `upload.html`) |
-| `src/platform/platform.h` | The platform API: time, log, files and folder listing, video present, pad, rumble, audio output, HTTP, text input |
+| `src/platform/` | The platform API (`platform.h`: time, log, files and folder listing, video present, pad, rumble, audio output, HTTP, text input), the test plan reader, and the URL helpers (`url.c`) shared by the launcher and the PS5 HTTP backend |
 | `src/audio/` | Sound engine: SFX mixer, MUS sequencer with DMX-style voice allocation, OPL FM synth |
 | `src/ps5/` | PS5 backend: startup (`crt0.c`), system, VideoOut, AGC compute presenter, pad, AudioOut, `sceHttp`, the IME keyboard |
 | `src/ps5/present.cl` | GPU kernel: palette lookup, sharp-bilinear scaling to 1080p, tiled scanout writes (gfx1010, wave64) |
@@ -83,7 +83,9 @@ and maps the chosen game to Doom's game mode, mission and language. The launcher
   file's header and directory, and tells The Ultimate DOOM from DOOM by the presence of `E4M1`;
 - imports any ZIP, 7Z or RAR found there that it has not imported before (recorded in
   `/download0/launcher.cfg` by size and path), extracting only known IWAD names;
-- downloads from a typed link with `plat_http_get`: an HTML answer is parsed as a folder listing
+- downloads from a typed link with `plat_http_get`, which follows redirects and reports where it
+  ended up (the PS5 backend follows `Location` itself, as `sceHttp`'s automatic redirects do not
+  say where they land), so a short link to a folder works: an HTML answer is parsed as a folder listing
   (links under the folder that end in `.wad`, `.zip`, `.7z`, `.rar` or `/`), a WAD is copied, an
   archive goes through libarchive. libarchive seeks with HTTP range requests; a server without them
   is read through or re-read from the start instead;

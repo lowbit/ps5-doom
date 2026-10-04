@@ -15,6 +15,7 @@
 #include "platform.h"
 #include "upload.h"
 #include "upload_page.h"
+#include "url.h"
 
 #define HEAD_LIMIT 8192
 #define CHUNK (256 * 1024)
@@ -155,38 +156,18 @@ static const char *header_value(const char *name)
     return NULL;
 }
 
-static int hex(int c)
-{
-    return c >= '0' && c <= '9' ? c - '0'
-         : c >= 'a' && c <= 'f' ? c - 'a' + 10
-         : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
-}
-
-// Turns the request path after /upload/ into a safe file name: decoded, without folders, lower
-// case, and one of the kinds the importer reads.
+// Turns the request path after /upload/ into a safe file name: decoded, lower case, with anything
+// that could name a folder replaced, and one of the kinds the importer reads.
 static int clean_name(char *out, size_t size, const char *path)
 {
     char decoded[UPLOAD_NAME * 3];
-    const char *base, *dot;
-    size_t n = 0;
+    const char *dot;
+    size_t n;
 
-    while (*path && *path != '?' && n < sizeof(decoded) - 1)
+    url_file_name(decoded, sizeof(decoded), path);
+    for (n = 0; decoded[n] && n < size - 1; n++)
     {
-        if (*path == '%' && hex(path[1]) >= 0 && hex(path[2]) >= 0)
-        {
-            decoded[n++] = (char)(hex(path[1]) * 16 + hex(path[2]));
-            path += 3;
-        }
-        else
-            decoded[n++] = *path++;
-    }
-    decoded[n] = 0;
-    base = decoded + n;
-    while (base > decoded && base[-1] != '/' && base[-1] != '\\')
-        base--;
-    for (n = 0; base[n] && n < size - 1; n++)
-    {
-        unsigned char c = (unsigned char)base[n];
+        unsigned char c = (unsigned char)decoded[n];
 
         out[n] = isalnum(c) || strchr(" .-_()[]+", c) ? (char)tolower(c) : '_';
     }

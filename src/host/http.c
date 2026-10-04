@@ -79,7 +79,7 @@ plat_http_t *plat_http_get(const char *url, uint64_t offset, plat_http_info_t *i
     char range[32];
     long status = 0;
     curl_off_t length = -1;
-    const char *type = NULL;
+    const char *type = NULL, *final = NULL;
 
     pthread_once(&once, start_curl);
     if (!http)
@@ -119,9 +119,11 @@ plat_http_t *plat_http_get(const char *url, uint64_t offset, plat_http_info_t *i
     }
     curl_easy_getinfo(http->easy, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &length);
     curl_easy_getinfo(http->easy, CURLINFO_CONTENT_TYPE, &type);
+    curl_easy_getinfo(http->easy, CURLINFO_EFFECTIVE_URL, &final);
     info->status = (int)status;
     info->length = length;
     snprintf(info->type, sizeof(info->type), "%s", type ? type : "");
+    snprintf(info->url, sizeof(info->url), "%s", final ? final : url);
     return http;
 }
 

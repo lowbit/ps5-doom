@@ -14,6 +14,7 @@
 #include "settings.h"
 #include "test_plan.h"
 #include "upload.h"
+#include "url.h"
 
 #define FRAME_US 16667
 #define REPEAT_DELAY 18

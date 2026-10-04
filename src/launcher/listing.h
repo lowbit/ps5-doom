@@ -21,10 +21,6 @@ typedef struct
     int count;
 } listing_t;
 
-void url_clean(char *out, size_t size, const char *typed);
-void url_directory(char *out, size_t size, const char *url);
-void url_resolve(char *out, size_t size, const char *base, const char *href);
-void url_file_name(char *out, size_t size, const char *url);
 void listing_parse(listing_t *listing, const char *base, const char *html, size_t length);
 
 #endif
