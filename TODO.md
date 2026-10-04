@@ -14,6 +14,15 @@ The launcher only starts the main games; add-on WADs found in archives are skipp
 - [ ] *Legacy of Rust* (`id1.wad` with `id1-*.wad` and `id24res.wad`): needs the id24 extensions
       (new weapons, monsters and the rest of the spec). Largest of these.
 
+## Controller wording
+
+- [ ] Doom's prompts still name keyboard keys: "press y or n", "press y to quit", "press a key",
+      "press enter" (the strings in `d_englsh.h` and `d_french.h`: quit, end game, nightmare, quick
+      save and load, save while dead, and the rest). Show the DualSense buttons instead (Cross for
+      yes, Circle for no, Cross to continue), as text or as button glyphs drawn in the menu font.
+- [ ] Help screen: *Read This!* and F1 show the keyboard help pages from the WAD (`HELP1`, `HELP2`,
+      `HELP`, `CREDIT`). Replace them with a page that shows the DualSense controls from the README.
+
 ## Importer
 
 - [ ] Folder links behind a redirect (for example a shorturl.at link to a folder): the listing's
