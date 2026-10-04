@@ -748,23 +748,58 @@ void M_QuickLoad(void)
 // Read This Menus
 // Had a "quick hack to fix romero bug"
 //
+// The first page shows the DualSense controls instead of id's keyboard
+// help (HELP1, or HELP in DOOM 2).
+//
+#define CONTROLS_SHADE	20
+
+static struct
+{
+    char*	button;
+    char*	action;
+} controls[] =
+{
+    {"left stick",			"move and strafe"},
+    {"right stick",			"turn"},
+    {"d-pad",				"move and turn"},
+    {"r2",				"fire"},
+    {GLYPH_CROSS" / "GLYPH_SQUARE,	"use"},
+    {GLYPH_CIRCLE" + d-pad",		"strafe"},
+    {"l2",				"run"},
+    {"l1 / r1",				"change weapon"},
+    {GLYPH_TRIANGLE" / touchpad",	"automap"},
+    {"options",				"menu"}
+};
+
 void M_DrawReadThis1(void)
 {
+    char*	title = "controls";
+    char*	automap = "automap: l1 / r1 zoom,  "GLYPH_SQUARE" follow";
+    char*	menus = "menus: "GLYPH_CROSS" select,  "GLYPH_CIRCLE" back";
+    byte*	flat = NULL;
+    byte*	dest = screens[0];
+    int		x;
+    int		y;
+    int		i;
+
     inhelpscreens = true;
-    switch ( gamemode )
+
+    // A darkened floor behind the text, like the story screens.
+    if (W_CheckNumForName("FLOOR4_8") >= 0)
+	flat = W_CacheLumpName("FLOOR4_8",PU_CACHE);
+    for (y = 0; y < SCREENHEIGHT; y++)
+	for (x = 0; x < SCREENWIDTH; x++)
+	    *dest++ = flat ? colormaps[CONTROLS_SHADE*256 + flat[(y&63)*64 + (x&63)]] : 0;
+    V_MarkRect (0, 0, SCREENWIDTH, SCREENHEIGHT);
+
+    M_WriteText(160 - M_StringWidth(title)/2, 10, title);
+    for (i = 0; i < sizeof(controls)/sizeof(controls[0]); i++)
     {
-      case commercial:
-	V_DrawPatchDirect (0,0,0,W_CacheLumpName("HELP",PU_CACHE));
-	break;
-      case shareware:
-      case registered:
-      case retail:
-	V_DrawPatchDirect (0,0,0,W_CacheLumpName("HELP1",PU_CACHE));
-	break;
-      default:
-	break;
+	M_WriteText(24, 30 + i*11, controls[i].button);
+	M_WriteText(136, 30 + i*11, controls[i].action);
     }
-    return;
+    M_WriteText(160 - M_StringWidth(automap)/2, 146, automap);
+    M_WriteText(160 - M_StringWidth(menus)/2, 158, menus);
 }
 
 
@@ -1259,6 +1294,11 @@ int M_StringWidth(char* string)
 	
     for (i = 0;i < strlen(string);i++)
     {
+	if (glyph_is_button(string[i]))
+	{
+	    w += GLYPH_ADVANCE;
+	    continue;
+	}
 	c = toupper(string[i]) - HU_FONTSTART;
 	if (c < 0 || c >= HU_FONTSIZE)
 	    w += 4;
@@ -1318,6 +1358,17 @@ M_WriteText
 	{
 	    cx = x;
 	    cy += 12;
+	    continue;
+	}
+
+	if (glyph_is_button(c))
+	{
+	    if (cx+GLYPH_ADVANCE > SCREENWIDTH)
+		break;
+	    glyph_draw(screens[0], SCREENWIDTH, SCREENHEIGHT, cx, cy, c, 1,
+		       W_CacheLumpName("PLAYPAL",PU_CACHE));
+	    V_MarkRect (cx, cy, GLYPH_ADVANCE, 8);
+	    cx += GLYPH_ADVANCE;
 	    continue;
 	}
 		
@@ -1866,9 +1917,14 @@ void M_Init (void)
 	// This is used because DOOM 2 had only one HELP
         //  page. I use CREDIT as second page now, but
 	//  kept this hack for educational purposes.
-	MainMenu[readthis] = MainMenu[quitdoom];
-	MainDef.numitems--;
-	MainDef.y += 8;
+	// The entry stays when the WAD has its graphic,
+	//  since the page now shows the controls.
+	if (W_CheckNumForName("M_RDTHIS") < 0)
+	{
+	    MainMenu[readthis] = MainMenu[quitdoom];
+	    MainDef.numitems--;
+	    MainDef.y += 8;
+	}
 	NewDef.prevMenu = &MainDef;
 	ReadDef1.routine = M_DrawReadThis1;
 	ReadDef1.x = 330;

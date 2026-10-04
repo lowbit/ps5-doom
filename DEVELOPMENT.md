@@ -13,7 +13,7 @@ liblzma, zlib) and the build tools listed at the end.
 | Path | What |
 | --- | --- |
 | `src/doom/` | id's original game code with the 64-bit and portability fixes listed below |
-| `src/port/` | Doom's `i_*` layer (main, system, video, sound, network, controller mapping) on top of the platform API |
+| `src/port/` | Doom's `i_*` layer (main, system, video, sound, network, controller mapping) on top of the platform API, and the button glyphs shared with the launcher |
 | `src/launcher/` | The game list shown before the engine starts: IWAD discovery, settings, Doom-style drawing from the bundled WAD, HTML folder listings, and the importer (HTTP or local file, WAD or ZIP/7Z/RAR) |
 | `src/platform/platform.h` | The platform API: time, log, files and folder listing, video present, pad, rumble, audio output, HTTP, text input |
 | `src/audio/` | Sound engine: SFX mixer, MUS sequencer with DMX-style voice allocation, OPL FM synth |
@@ -169,6 +169,12 @@ import from `http://192.168.0.10:8666/`), `console-autoimport.cfg`, `console-tnt
 
 Saving needs no keyboard: an empty slot is pre-filled with the level name, Cross saves.
 
+Text names the face buttons with glyph characters (`GLYPH_CROSS` and the others in
+`src/port/glyphs.h`, control characters 1 to 4) that Doom's menu font and the launcher draw as the
+button symbols in their PlayStation colours. The first *Read This!* page shows this table instead of
+id's keyboard help (`HELP1`, `HELP`); DOOM II keeps its *Read This!* entry whenever the WAD has the
+`M_RDTHIS` graphic, which all of them do.
+
 ## Changes to id's code
 
 - 64-bit: pointers stored in `int` (config string defaults, save game pointer fields, the
@@ -188,7 +194,8 @@ Saving needs no keyboard: an empty slot is pre-filled with the level name, Cross
   static limits raised (visplanes, drawsegs, sprites, openings, intercepts, plats, ceilings,
   buttons, scrollers) so limit-removing maps such as Freedoom's run; full-screen pictures wider
   than 320 pixels (the 2024 re-release's widescreen title and intermission screens) are drawn
-  centred and clipped instead of being rejected.
+  centred and clipped instead of being rejected; prompts name DualSense buttons instead of keys
+  (`d_englsh.h`, `d_french.h`) and the first help page lists the controller controls.
 
 ## External code and tools (pinned)
 

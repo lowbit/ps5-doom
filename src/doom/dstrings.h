@@ -30,6 +30,8 @@
 // All important printed strings.
 // Language selection (message strings).
 // Use -DFRENCH etc.
+// Prompts name DualSense buttons through the glyph characters.
+#include "glyphs.h"
 
 #ifdef FRENCH
 #include "d_french.h"

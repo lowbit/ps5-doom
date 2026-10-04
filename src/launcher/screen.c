@@ -7,6 +7,7 @@
 #include <strings.h>
 #include <unistd.h>
 
+#include "glyphs.h"
 #include "platform.h"
 #include "screen.h"
 
@@ -244,7 +245,10 @@ int screen_text_width(const char *text, int scale)
     int width = 0;
 
     for (; *text && *text != '\n'; text++)
-        width += (glyph(*text) ? s16(glyph(*text)) : SPACE_WIDTH) * scale;
+        if (glyph_is_button(*text))
+            width += GLYPH_ADVANCE * scale;
+        else
+            width += (glyph(*text) ? s16(glyph(*text)) : SPACE_WIDTH) * scale;
     return width;
 }
 
@@ -254,6 +258,12 @@ void screen_text(int x, int y, const char *text, ink_t ink, int scale)
     {
         const uint8_t *g = glyph(*text);
 
+        if (glyph_is_button(*text))
+        {
+            glyph_draw(pixels, SCREEN_WIDTH, SCREEN_HEIGHT, x, y, *text, scale, rgb);
+            x += GLYPH_ADVANCE * scale;
+            continue;
+        }
         if (g)
             draw_patch(x, y, g, inks[ink], scale, 1);
         x += (g ? s16(g) : SPACE_WIDTH) * scale;

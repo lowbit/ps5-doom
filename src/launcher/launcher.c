@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "games.h"
+#include "glyphs.h"
 #include "import.h"
 #include "launcher.h"
 #include "listing.h"
@@ -211,7 +212,7 @@ static void games_view(void)
         screen_text_center(160, "Own Doom, Doom II, TNT or Plutonia?", INK_GRAY, 1);
         screen_text_center(170, "Add them under Add games.", INK_GRAY, 1);
     }
-    screen_text_center(FOOTER_Y, "X start    O quit", INK_GRAY, 1);
+    screen_text_center(FOOTER_Y, GLYPH_CROSS " start    " GLYPH_CIRCLE " quit", INK_GRAY, 1);
 }
 
 static void add_view(void)
@@ -284,7 +285,8 @@ static void add_view(void)
     draw_row(30, y + 6 + ROW, "Download", add_row == 1, settings.url[0] != 0);
     draw_row(30, y + 6 + ROW * 2, "Back", add_row == 2, 1);
     draw_status(FOOTER_Y - 11, 0);
-    screen_text_center(FOOTER_Y, add_row == 0 ? "X edit link    O back" : "X select    O back", INK_GRAY, 1);
+    screen_text_center(FOOTER_Y, add_row == 0 ? GLYPH_CROSS " edit link    " GLYPH_CIRCLE " back"
+                                                 : GLYPH_CROSS " select    " GLYPH_CIRCLE " back", INK_GRAY, 1);
 }
 
 static void notice_view(void)
@@ -324,7 +326,7 @@ static void notice_view(void)
         screen_box(42, y + 17, 4, 4, 1);
     draw_row(40, y + 16 + ROW, "Continue", notice_row == 1, understood);
     draw_row(40, y + 16 + ROW * 2, "Back", notice_row == 2, 1);
-    screen_text_center(FOOTER_Y, "X select    O back", INK_GRAY, 1);
+    screen_text_center(FOOTER_Y, GLYPH_CROSS " select    " GLYPH_CIRCLE " back", INK_GRAY, 1);
 }
 
 static int browse_files(void)
@@ -382,7 +384,7 @@ static void browse_view(void)
         screen_text_fit(30, y, SCREEN_WIDTH - 46, line, i == browse_row ? INK_WHITE : INK_RED, 0);
     }
     draw_status(FOOTER_Y - 11, 0);
-    screen_text_center(FOOTER_Y, "X open    O back", INK_GRAY, 1);
+    screen_text_center(FOOTER_Y, GLYPH_CROSS " open    " GLYPH_CIRCLE " back", INK_GRAY, 1);
 }
 
 static void finish_import(const import_status_t *status)
@@ -444,7 +446,7 @@ static void draw_progress(const import_status_t *status)
         snprintf(line, sizeof(line), "Found: %s", status->found);
         screen_wrap(20, y, SCREEN_WIDTH - 40, line, INK_GREEN);
     }
-    screen_text_center(FOOTER_Y, "O cancel", INK_GRAY, 1);
+    screen_text_center(FOOTER_Y, GLYPH_CIRCLE " cancel", INK_GRAY, 1);
 }
 
 static void import_view(void)

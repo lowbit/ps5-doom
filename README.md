@@ -75,7 +75,8 @@ traffic. Allow the port through the PC's firewall if the console cannot connect.
 | Triangle / touchpad | Automap (Square: follow mode) | |
 | Options | Menu | Close menu |
 
-Saves and settings stay on the console, and each game keeps its own saves. Holding **L1+R1** at launch uses the CPU scaler instead of
+Prompts show the buttons to press, and *Read This!* in the main menu opens this list on the
+console. Saves and settings stay on the console, and each game keeps its own saves. Holding **L1+R1** at launch uses the CPU scaler instead of
 the GPU, should a firmware ever disagree with the GPU path.
 
 ## Building and internals
