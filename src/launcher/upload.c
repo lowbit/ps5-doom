@@ -2,6 +2,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,6 +12,7 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "platform.h"
@@ -26,6 +29,9 @@
 #define RECEIVE_TIMEOUT_S 1
 #define SEND_TIMEOUT_S 5
 #define IDLE_LIMIT_S 30
+#define MAX_WAITING 8
+#define WAITING_LIMIT_S 15
+#define POLL_MS 250
 
 #ifdef MSG_NOSIGNAL
 #define SEND_FLAGS MSG_NOSIGNAL
@@ -331,34 +337,85 @@ static void handle(int fd)
         respond_text(fd, "404 Not Found", "Not found.");
 }
 
-static void *serve(void *arg)
+static void prepare_client(int client)
 {
     struct timeval receive_timeout = {RECEIVE_TIMEOUT_S, 0}, send_timeout = {SEND_TIMEOUT_S, 0};
+    int yes = 1;
+
+#ifdef SO_NOSIGPIPE
+    setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes));
+#endif
+    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &receive_timeout, sizeof(receive_timeout));
+    setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
+    // A reply is two sends (head, body). With Nagle the body waits until the sender acknowledges
+    // the head, which Windows delays by up to 200 ms per request.
+    setsockopt(client, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes));
+}
+
+// Browsers open connections before they need them and may leave them quiet, so the server keeps
+// several waiting and serves whichever sends a request first, one request at a time; waiting for
+// the next request on a single connection blocked everyone else for up to IDLE_LIMIT_S.
+static void *serve(void *arg)
+{
+    int waiting[MAX_WAITING], count = 0, kept, i;
+    time_t since[MAX_WAITING], now;
+    struct pollfd fds[1 + MAX_WAITING];
 
     (void)arg;
     while (!stopping)
     {
-        int client = accept(listener, NULL, NULL);
-
-        if (client < 0)
+        fds[0].fd = listener;
+        fds[0].events = POLLIN;
+        for (i = 0; i < count; i++)
         {
-            if (!stopping)
-                plat_sleep_us(100000);
+            fds[1 + i].fd = waiting[i];
+            fds[1 + i].events = POLLIN;
+        }
+        if (poll(fds, (nfds_t)(1 + count), POLL_MS) < 0)
+        {
+            plat_sleep_us(100000);
             continue;
         }
-        if (!stopping)
-        {
-#ifdef SO_NOSIGPIPE
-            int yes = 1;
 
-            setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &yes, sizeof(yes));
-#endif
-            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &receive_timeout, sizeof(receive_timeout));
-            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
-            handle(client);
+        // Connections that sent something (or closed) are served and closed, quiet ones dropped
+        // after WAITING_LIMIT_S.
+        now = time(NULL);
+        kept = 0;
+        for (i = 0; i < count; i++)
+        {
+            int ready = fds[1 + i].revents != 0;
+
+            if (ready && !stopping)
+                handle(waiting[i]);
+            if (ready || stopping || now - since[i] > WAITING_LIMIT_S)
+            {
+                close(waiting[i]);
+                continue;
+            }
+            waiting[kept] = waiting[i];
+            since[kept++] = since[i];
         }
-        close(client);
+        count = kept;
+
+        if ((fds[0].revents & POLLIN) && !stopping)
+        {
+            int client = accept(listener, NULL, NULL);
+
+            if (client < 0)
+                continue;
+            if (count == MAX_WAITING)
+            {
+                close(waiting[0]);
+                memmove(waiting, waiting + 1, (size_t)--count * sizeof(waiting[0]));
+                memmove(since, since + 1, (size_t)count * sizeof(since[0]));
+            }
+            prepare_client(client);
+            waiting[count] = client;
+            since[count++] = now;
+        }
     }
+    for (i = 0; i < count; i++)
+        close(waiting[i]);
     return NULL;
 }
 
@@ -472,23 +529,12 @@ int upload_start(const char *dir)
 
 void upload_stop(void)
 {
-    struct sockaddr_in self;
-    int fd, i;
+    int i;
 
     if (!running)
         return;
     stopping = 1;
-
-    // accept() does not return on its own; a connection to ourselves wakes the thread up.
-    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) >= 0)
-    {
-        memset(&self, 0, sizeof(self));
-        self.sin_family = AF_INET;
-        self.sin_port = htons((uint16_t)port);
-        self.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-        connect(fd, (struct sockaddr *)&self, sizeof(self));
-        close(fd);
-    }
+    // The server thread sees it within POLL_MS.
     pthread_join(server, NULL);
     close(listener);
     listener = -1;

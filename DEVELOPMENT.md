@@ -98,7 +98,13 @@ and maps the chosen game to Doom's game mode, mission and language. The launcher
   as `<name>.upload` in the WAD folder. The launcher moves game WADs into place, runs archives
   through the importer and deletes them afterwards, and reports each result on the screen and to the
   page, which polls `GET /status`. The address shown is the one the route to the internet leaves
-  from (a connected UDP socket's local address); the QR code is drawn with qrcodegen.
+  from (a connected UDP socket's local address); the QR code is drawn with qrcodegen. The server
+  handles one request at a time but keeps up to eight connections waiting and serves whichever
+  sends a request first: browsers open connections before they need them and may leave them quiet,
+  and waiting on one (up to 30 s) stalled the page and every upload. Replies go out with
+  `TCP_NODELAY`: they are two sends, and with Nagle the second waited for Windows' delayed
+  acknowledgement (up to 200 ms). Both came from the OpenRCT2 port, where the same server was
+  measured on the console (2026-10-05); not run on the console in this port.
 
 Saves are per game: `<save dir>/<iwad name>sav<slot>.dsg` (for example `doom2sav0.dsg`).
 
