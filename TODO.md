@@ -24,3 +24,18 @@ Loading itself exists: id's `-file` still works. Order of work:
 - [ ] *Legacy of Rust* and most community WADs (Boom, MBF21, `DEHACKED`) need far more than id's
       engine: decide between extending it and moving the game core to a modern port (for example
       DSDA-Doom or Woof!) behind our PS5 layer.
+
+## Found in console testing (2026-10-06)
+
+- [ ] A crash on the console with no trace: The Ultimate DOOM (the 2024 `doom.wad`) on its attract
+      demos with the main menu open, within a second after frame 3300 (about 95 s after the
+      launcher). ShadowMountPlus saw an exception stop (`flags=0x008a4102`); `doom.log` ends at the
+      capture of frame 3300, and the kernel log's crash lines were read past before they were kept.
+      The same run again went 9000 frames without a crash, and the PC build (with AddressSanitizer,
+      with and without audio) plays the same demos cleanly. Keep a kernel log recording during
+      console runs (klogsrv, or polling the helper's `/api/ps5/klog`) to catch the next one.
+- [ ] Games already installed count as added: sending the collection 7Z again reports "Added
+      DOOM.WAD DOOM2.WAD PLUTONIA.WAD TNT.WAD" and the game list "Added 5 games" when nothing new
+      arrived. Report only new games, and name them by title.
+- [ ] The page's *On the console* list waits for a running upload (the server takes one request at a
+      time), so a WAD added before a long archive shows up only after the archive is sent.

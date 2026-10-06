@@ -2,8 +2,9 @@
 
     uv run --no-project --with pillow python tools/console_test.py test/console-play.cfg [--timeout S]
 
-Writes the plan to the title folder as test.cfg (plus a capture port), launches PPSA99666 with
-the doomlaunch payload (tools/launcher, loaded through the Payload Manager), pulls the frames the
+Writes the plan to the title folder as test.cfg (plus a capture port), launches PPSA99666 (with
+the doomlaunch payload from tools/launcher, loaded through the Payload Manager, or through the
+PS5Upload helper when the Payload Manager does not answer), pulls the frames the
 plan captures from the running title over TCP, converts them to PNG under build/test/run/,
 receives the title's log over the same connection when it exits (build/test/run/doom.log),
 prints it and removes test.cfg again. The PS5Upload helper must be running.
@@ -59,6 +60,15 @@ def install_launcher():
         pass
     push.http("POST", "/api/ps5/fs/mkdir", {"addr": push.XFER, "path": LAUNCHER_DIR})
     write_remote(f"{LAUNCHER_DIR}/{LAUNCHER.name}", data)
+
+
+def launch():
+    try:
+        print("launch:", get(f"{PLDMGR}/loadpayload:{LAUNCHER.name}", timeout=30).strip()[:200], flush=True)
+    except OSError as e:
+        # The Payload Manager's port can stay dead after rest mode; the helper launches the same way.
+        print(f"Payload Manager unreachable ({e}), launching through the PS5Upload helper", flush=True)
+        print("launch:", push.http("POST", "/api/ps5/app/launch", {"addr": push.XFER, "title_id": TITLE}), flush=True)
 
 
 def receive_exactly(sock, size):
@@ -134,7 +144,7 @@ def main():
     plan = Path(args.plan).read_text().rstrip("\n") + f"\nserve {CAPTURE_PORT}\n"
     write_remote(TEST_PLAN, plan.encode())
 
-    print("launch:", get(f"{PLDMGR}/loadpayload:{LAUNCHER.name}", timeout=30).strip()[:200], flush=True)
+    launch()
     seen = set()
     deadline = time.time() + args.timeout
     try:

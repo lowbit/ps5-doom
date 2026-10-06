@@ -100,21 +100,23 @@ static void respond_text(int fd, const char *status, const char *text)
     respond(fd, status, "text/plain; charset=utf-8", text, strlen(text));
 }
 
-// recv that gives up when the server stops or the browser stays quiet for too long.
+// recv that gives up when the server stops or the browser stays quiet for too long. The stop is
+// checked before every recv: data that keeps arriving must not hold up leaving the screen.
 static ssize_t receive(int fd, void *buffer, size_t size)
 {
     int idle = 0;
 
-    for (;;)
+    while (!stopping)
     {
         ssize_t got = recv(fd, buffer, size, 0);
 
         if (got >= 0)
             return got;
-        if ((errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) || stopping ||
+        if ((errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) ||
             ++idle >= IDLE_LIMIT_S / RECEIVE_TIMEOUT_S)
             return -1;
     }
+    return -1;
 }
 
 // Reads the request head into head[]; returns its length including the blank line, with the
@@ -215,6 +217,7 @@ static void put_file(int fd, const char *target, int head_length, int used)
     char name[UPLOAD_NAME], part[UPLOAD_PATH];
     const char *value = header_value("Content-Length");
     long long length = value ? strtoll(value, NULL, 10) : -1, done = 0;
+    size_t filled = 0;
     int out, full, lost = 0, error = 0;
 
     if (clean_name(name, sizeof(name), target))
@@ -250,24 +253,35 @@ static void put_file(int fd, const char *target, int head_length, int used)
     {
         long long extra = used - head_length < length ? used - head_length : length;
 
-        if (write_all(out, (const uint8_t *)head + head_length, (size_t)extra))
-            error = errno ? errno : EIO;
+        memcpy(chunk, head + head_length, (size_t)extra);
+        filled = (size_t)extra;
         done = extra;
     }
+    // Writes go out in whole chunks. recv hands over about 20 KB at a time, and the console
+    // charges per write, more the larger the file: written as received, a 643 MB archive fell
+    // to 0.4 MB/s past 400 MB.
     while (!error && !lost && done < length)
     {
-        ssize_t got = receive(fd, chunk, length - done < CHUNK ? (size_t)(length - done) : CHUNK);
+        size_t room = CHUNK - filled;
+        ssize_t got = receive(fd, chunk + filled, length - done < (long long)room ? (size_t)(length - done) : room);
 
         if (got <= 0)
             lost = 1;
-        else if (write_all(out, chunk, (size_t)got))
-            error = errno ? errno : EIO;
         else
         {
+            filled += (size_t)got;
             done += got;
             set_progress(1, name, done, length);
+            if (filled == CHUNK)
+            {
+                if (write_all(out, chunk, filled))
+                    error = errno ? errno : EIO;
+                filled = 0;
+            }
         }
     }
+    if (!error && !lost && filled && write_all(out, chunk, filled))
+        error = errno ? errno : EIO;
     close(out);
     set_progress(0, "", 0, 0);
 

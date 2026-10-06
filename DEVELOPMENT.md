@@ -25,6 +25,7 @@ the end.
 | `test/` | `render_music` (MUS lump to WAV), `present_preview` (runs the GPU kernel's math on the CPU) and the console test plans |
 | `sce_sys/` | `param.json` (raise `contentVersion` in every release) and the icon (the shareware WAD's `M_DOOM` logo, scaled 3x on black) |
 | `tools/` | Tool, library and shareware WAD fetch, kernel and page embedding, deploy, console test runner, `send.py` (sends files to the send screen like its page) |
+| `screenshots/` | For showing the port, taken on the console (2026-10-06): the game list, the send screen during and after an upload and its page in a browser, the DOOM II title, MAP01 and shooting the first zombies. Console captures cut to the 4:3 picture (1440x1080, the side bars dropped), the page to 768x576 |
 
 ## Build
 
@@ -103,8 +104,11 @@ and maps the chosen game to Doom's game mode, mission and language. The launcher
   sends a request first: browsers open connections before they need them and may leave them quiet,
   and waiting on one (up to 30 s) stalled the page and every upload. Replies go out with
   `TCP_NODELAY`: they are two sends, and with Nagle the second waited for Windows' delayed
-  acknowledgement (up to 200 ms). Both came from the OpenRCT2 port, where the same server was
-  measured on the console (2026-10-05); not run on the console in this port.
+  acknowledgement (up to 200 ms). Both came from the OpenRCT2 port. The body is written in whole
+  256 KB chunks (see the write cost under PS5 facts), and leaving the screen stops an upload in
+  progress at once, deleting the partial file. On the console (2026-10-06) a browser sent a WAD and
+  a 643 MB 7Z at 11 MB/s, the network's speed, and the 7Z's games were added 8 s later. While an
+  upload runs the page's status polls wait for it, so its *On the console* list fills in afterwards.
 
 Saves are per game: `<save dir>/<iwad name>sav<slot>.dsg` (for example `doom2sav0.dsg`).
 
@@ -129,7 +133,8 @@ itself and logs why.
 
 `tools/console_test.py <plan>` runs the deployed title hands-free: it writes the plan as `test.cfg`
 into the title folder, launches through the `doomlaunch` payload (`tools/launcher`, put into
-`/data/pldmgr/payloads/doomlaunch/`), pulls captured frames over TCP from the running game (the
+`/data/pldmgr/payloads/doomlaunch/`; when the Payload Manager's port is dead after rest mode, through
+the PS5Upload helper's app launch instead), pulls captured frames over TCP from the running game (the
 app listens on 9119; the PC firewall blocks the other direction), de-tiles them to PNG in
 `build/test/run/`, receives `doom.log` over the same connection when the game exits, prints it and
 deletes `test.cfg`. Plan lines: `input <steps>`, `capture <frames>`, `frames <N>` (clean exit),
@@ -153,6 +158,10 @@ import from `http://192.168.0.10:8666/`), `console-autoimport.cfg`, `console-tnt
   plus `sceKernelGetdents` (8-byte records: 32-bit inode, 16-bit length, type, name length). Saves
   use explicit `/download0/...` paths; output is captured by pointing `stdout`/`stderr` at a pipe
   (`fdopen`), and klog wants one line per `sceKernelDebugOutText`.
+- Writes to `/app0` cost per call, and more the larger the file. Writing a 643 MB upload as `recv`
+  handed it over (about 20 KB per call) took 1.6 ms per write at first, 9 ms past 384 MB and
+  47 ms past 480 MB, down to 0.4 MB/s; in 256 KB writes it stayed at 4 ms each to the end (about
+  60 MB/s). `recv` on a title's socket returns about 20 KB at a time.
 - A title can listen on TCP ports, but the sandbox refuses some with `EACCES` (8666 and 50000 of
   those tried; 8000, 9000, 9090, 9666, 18666 and 30000 work). BSD sockets come from `libkernel`.
 - `sceHttp` with `sceSsl` works in the sandboxed title, plain and HTTPS, including `Range` request
