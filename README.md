@@ -9,6 +9,15 @@ It ships with the free shareware episode of DOOM and plays The Ultimate DOOM, DO
 DOOM from your own game files, which you can send from a PC or phone browser, download from a
 link or copy to the console, including straight out of ZIP, 7Z and RAR archives.
 
+<p align="center">
+  <img src="screenshots/shooting.png" width="49%" alt="DOOM II, MAP01: firing the pistol at a zombieman">
+  <img src="screenshots/shooting-2.png" width="49%" alt="DOOM II, MAP01: the next zombieman, one already down">
+</p>
+<p align="center">
+  <img src="screenshots/launcher.png" width="49%" alt="The game list with The Ultimate DOOM, DOOM II, both Final DOOM games and the shareware episode">
+  <img src="screenshots/title.png" width="49%" alt="DOOM II title screen">
+</p>
+
 ## Requirements
 
 A jailbroken PS5 with kstuff (fake-signed executables) and
@@ -51,6 +60,11 @@ WADs it recognises and skips everything else.
 - **Download them from a link.** In the game list choose *Add games...*, then *Link*, type an
   `http://` or `https://` address on the console keyboard and choose *Download*. The link can point
   at a WAD, an archive, or a folder; for a folder DOOM lists the files and you pick one or all.
+
+<p align="center">
+  <img src="screenshots/send-screen.png" width="49%" alt="The send screen on the TV, receiving the DOOM + DOOM II collection 7Z">
+  <img src="screenshots/upload-page.png" width="49%" alt="The same transfer on the page in a PC browser">
+</p>
 
 To download from your own PC instead, open a terminal in the folder that holds the files and run a
 small web server, then use the address it prints with your PC's local IP (for example
