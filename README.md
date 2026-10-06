@@ -66,19 +66,6 @@ WADs it recognises and skips everything else.
   <img src="screenshots/upload-page.png" width="49%" alt="The same transfer on the page in a PC browser">
 </p>
 
-To download from your own PC instead, open a terminal in the folder that holds the files and run a
-small web server, then use the address it prints with your PC's local IP (for example
-`http://192.168.1.20:8000/`):
-
-```bash
-python -m http.server 8000
-```
-
-Any web server that lists a folder works (nginx, Apache, Caddy, IIS, `npx http-server`). One that
-supports range requests (all of those except Python's) lets DOOM read a 7Z or ZIP without
-downloading the parts it does not need; with Python's server it still works, just with more
-traffic. Allow the port through the PC's firewall if the console cannot connect.
-
 ## Controls
 
 | Input | In game | In menus |
