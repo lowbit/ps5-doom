@@ -24,6 +24,8 @@ void settings_load(settings_t *settings)
         line[strcspn(line, "\r\n")] = 0;
         if (!strncmp(line, "game ", 5))
             snprintf(settings->game, sizeof(settings->game), "%s", line + 5);
+        else if (!strncmp(line, "addon ", 6))
+            snprintf(settings->addon, sizeof(settings->addon), "%s", line + 6);
         else if (!strncmp(line, "url ", 4))
             snprintf(settings->url, sizeof(settings->url), "%s", line + 4);
         else if (!strncmp(line, "accepted ", 9))
@@ -47,7 +49,8 @@ void settings_save(const settings_t *settings)
         plat_log("launcher: cannot write %s\n", path);
         return;
     }
-    fprintf(file, "game %s\nurl %s\naccepted %d\n", settings->game, settings->url, settings->accepted);
+    fprintf(file, "game %s\naddon %s\nurl %s\naccepted %d\n", settings->game, settings->addon, settings->url,
+            settings->accepted);
     for (i = 0; i < settings->imported_count; i++)
         fprintf(file, "imported %s\n", settings->imported[i]);
     fclose(file);

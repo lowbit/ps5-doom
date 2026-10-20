@@ -903,10 +903,8 @@ void D_DoomMain (void)
 	    "ATTENTION:  This version of DOOM has been modified.  If you would like to\n"
 	    "get a copy of the original game, call 1-800-IDGAMES or see the readme file.\n"
 	    "        You will not receive technical support for modified games.\n"
-	    "                      press enter to continue\n"
 	    "===========================================================================\n"
 	    );
-	getchar ();
     }
 	
 

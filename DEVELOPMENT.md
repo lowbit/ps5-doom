@@ -62,7 +62,8 @@ libc heap cannot hold a 64 MB LZMA dictionary. The PC build uses the same wrappe
 `DOOM_CAPTURE` (frame numbers to save as PNG plus raw indices and palette), `DOOM_FRAMES` (exit
 after N frames), `DOOM_AUDIO` (absolute WAV path), `DOOM_INPUT` (pad script:
 `frame:BUTTON+BUTTON+LX=-32000:frames;...`), `DOOM_IWAD` (skip the launcher and start this game
-file, e.g. `doom1.wad`) and `DOOM_TEXT` (the answer to the keyboard prompt).
+file, e.g. `doom1.wad`), `DOOM_ADDON` (the add-on to start it with, e.g. `scythe.wad`) and `DOOM_TEXT`
+(the answer to the keyboard prompt).
 
 ```bash
 DOOM_IWAD=doom1.wad DOOM_OUT=out DOOM_CAPTURE=120,900 build/host/bin/doom -timedemo demo1
@@ -82,8 +83,17 @@ and maps the chosen game to Doom's game mode, mission and language. The launcher
 
 - scans the WAD folders (`/app0/wads`, then `/download0`) for the known IWAD names, checks each
   file's header and directory, and tells The Ultimate DOOM from DOOM by the presence of `E4M1`;
+- scans the `addons/` subfolder of those folders, and the folders themselves, for PWADs
+  (`src/launcher/addons.c`); their map lumps say which games they fit (`ExMy` or `MAPxx` numbering,
+  none fits every game, the shareware WAD takes none). A game with fitting add-ons asks for one
+  before it starts; `I_ChooseIwad` appends the choice to `myargv` as `-file` and gives it its own
+  save name, and `launcher.cfg` remembers it (`addon`). What loads is what `doom2.exe` loaded:
+  textures, graphics, sounds and music; flats only behind the trailing `F_END` marker DeuTex
+  writes; sprites not at all (a PWAD's `S_END` moves the sprite scan over the IWAD's flats and
+  the game stops at start-up); a DeHackEd lump is ignored;
 - imports any ZIP, 7Z or RAR found there that it has not imported before (recorded in
-  `/download0/launcher.cfg` by size and path), extracting only known IWAD names;
+  `/download0/launcher.cfg` by size and path), extracting known IWAD names and `.wad` entries
+  with a `PWAD` header, which become add-ons;
 - downloads from a typed link with `plat_http_get`, which follows redirects and reports where it
   ended up (the PS5 backend follows `Location` itself, as `sceHttp`'s automatic redirects do not
   say where they land), so a short link to a folder works: an HTML answer is parsed as a folder listing
@@ -91,12 +101,13 @@ and maps the chosen game to Doom's game mode, mission and language. The launcher
   archive goes through libarchive. libarchive seeks with HTTP range requests; a server without them
   is read through or re-read from the start instead;
 - writes into the first writable WAD folder (`/app0/wads` on the console), through a `.part` file
-  that is checked as an IWAD before it is renamed;
+  that is checked as an IWAD, or as a PWAD for an add-on, before it is renamed; add-ons go to
+  `addons/` under that folder, or beside the games where the folder cannot be made;
 - shows a one-time notice with a checkbox before the first download;
 - receives files from a browser on the send screen (*Add games*, *Send from PC or phone*):
   `upload.c` listens only while that screen is open, on port 9666 or the next free one, serves
   `upload.html` (embedded at build time by `tools/embed-file.py`) and stores each `PUT /upload/<name>`
-  as `<name>.upload` in the WAD folder. The launcher moves game WADs into place, runs archives
+  as `<name>.upload` in the WAD folder. The launcher moves game WADs and add-ons into place, runs archives
   through the importer and deletes them afterwards, and reports each result on the screen and to the
   page, which polls `GET /status`. The address shown is the one the route to the internet leaves
   from (a connected UDP socket's local address); the QR code is drawn with qrcodegen. The server
@@ -110,7 +121,9 @@ and maps the chosen game to Doom's game mode, mission and language. The launcher
   a 643 MB 7Z at 11 MB/s, the network's speed, and the 7Z's games were added 8 s later. While an
   upload runs the page's status polls wait for it, so its *On the console* list fills in afterwards.
 
-Saves are per game: `<save dir>/<iwad name>sav<slot>.dsg` (for example `doom2sav0.dsg`).
+Saves are per game: `<save dir>/<iwad name>sav<slot>.dsg` (for example `doom2sav0.dsg`), and per
+add-on: `<iwad name>-<add-on name>sav<slot>.dsg`, the add-on's name without `.wad` and cut to 24
+characters (for example `doom2-scythesav0.dsg`).
 
 ## On the console
 
@@ -138,13 +151,15 @@ the PS5Upload helper's app launch instead), pulls captured frames over TCP from 
 app listens on 9119; the PC firewall blocks the other direction), de-tiles them to PNG in
 `build/test/run/`, receives `doom.log` over the same connection when the game exits, prints it and
 deletes `test.cfg`. Plan lines: `input <steps>`, `capture <frames>`, `frames <N>` (clean exit),
-`present cpu`, `game <file>` (skip the launcher), `text <value>` (answer the keyboard prompt
+`present cpu`, `game <file>` (skip the launcher), `addon <file>` (start the game with this add-on),
+`text <value>` (answer the keyboard prompt
 without opening it), `reset` (delete the app's saved data in `/download0` first, for a first-run
 state; `console-reset.cfg` does only that). Plans: `console-play.cfg` (menus, play, save, load), `console-cpu.cfg`,
 `console-soak.cfg` (6 minutes), `console-import.cfg` (launcher, notice, folder listing and a 7Z
 import from `http://192.168.0.10:8666/`), `console-autoimport.cfg`, `console-tnt.cfg`,
 `console-ultimate.cfg`, `console-send.cfg` (opens the send screen for a minute; run
-`tools/send.py <address> <files>` meanwhile).
+`tools/send.py <address> <files>` meanwhile), `console-addon.cfg` (the first game with its first
+add-on, then a new game in it).
 
 ## PS5 facts learned on hardware (FW 13.00)
 
@@ -223,7 +238,9 @@ id's keyboard help (`HELP1`, `HELP`); DOOM II keeps its *Read This!* entry whene
   buttons, scrollers) so limit-removing maps such as Freedoom's run; full-screen pictures wider
   than 320 pixels (the 2024 re-release's widescreen title and intermission screens) are drawn
   centred and clipped instead of being rejected; prompts name DualSense buttons instead of keys
-  (`d_englsh.h`, `d_french.h`) and the first help page lists the controller controls.
+  (`d_englsh.h`, `d_french.h`) and the first help page lists the controller controls; the
+  modified-game banner no longer waits for Enter on stdin (`getchar`), which a console does not
+  have.
 
 ## External code and tools (pinned)
 

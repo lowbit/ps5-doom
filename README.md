@@ -61,6 +61,21 @@ WADs it recognises and skips everything else.
   `http://` or `https://` address on the console keyboard and choose *Download*. The link can point
   at a WAD, an archive, or a folder; for a folder DOOM lists the files and you pick one or all.
 
+### Add-ons
+
+Add-ons are extra WADs for a game you have: maps, graphics or sounds made for the original DOOM
+engine. They arrive the same three ways as the games, and DOOM tells them apart from games by their
+`PWAD` header: copied over FTP or USB they go in `/data/homebrew/PPSA99666/wads/addons/`, and the
+send screen and a link download store them there. Starting a game that has add-ons for it asks
+which one to play, or *Just the game*; each add-on keeps its own saves. The shareware episode
+cannot start add-ons, as id's engine refuses it.
+
+What works is what worked with `doom2.exe`: maps in the game's numbering, new textures, title and
+intermission art, sounds and music. Add-ons that bring their own sprites, or that need DeHackEd,
+Boom, MBF or `UMAPINFO`, are not supported: id's engine cannot take sprites from a `-file` WAD
+(such an add-on stops at start-up) and ignores DeHackEd. Freedoom keeps the original lump names,
+so add-ons made for DOOM II within these limits also run on Freedoom: Phase 2.
+
 <p align="center">
   <img src="screenshots/send-screen.png" width="49%" alt="The send screen on the TV, receiving the DOOM + DOOM II collection 7Z">
   <img src="screenshots/upload-page.png" width="49%" alt="The same transfer on the page in a PC browser">

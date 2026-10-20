@@ -4,6 +4,7 @@
 #include <strings.h>
 #include <unistd.h>
 
+#include "addons.h"
 #include "games.h"
 #include "glyphs.h"
 #include "import.h"
@@ -23,6 +24,7 @@
 #define ROW 12
 #define SKULL_FRAMES 14
 #define GAME_ROWS 7
+#define ADDON_ROWS 10
 #define BROWSE_ROWS 12
 #define FOOTER_Y 188
 #define MB (1024.0 * 1024.0)
@@ -31,6 +33,7 @@
 typedef enum
 {
     VIEW_GAMES,
+    VIEW_ADDONS,
     VIEW_ADD,
     VIEW_NOTICE,
     VIEW_BROWSE,
@@ -39,6 +42,10 @@ typedef enum
 } view_t;
 
 static game_list_t games;
+static addon_list_t addons;
+static const addon_t *fitting[MAX_ADDONS];
+static int fitting_count, addon_row;
+static const addon_t *chosen_addon;
 static settings_t settings;
 static listing_t browse;
 static char import_dir[GAME_PATH];
@@ -53,7 +60,7 @@ static int frame, typing, understood, auto_import;
 static uint32_t held, pressed;
 static int repeat_timer, input_locked = 1;
 static const game_t *chosen;
-static int send_ready, send_added;
+static int send_ready, send_added, send_addons;
 static char send_lines[SEND_LINES][192];
 static int send_line_ok[SEND_LINES], send_line_count;
 static char send_archive[GAME_PATH + UPLOAD_NAME];
@@ -185,6 +192,36 @@ static void start_auto_import(void)
         start_import(pending, pending_count, VIEW_GAMES, 1);
 }
 
+static void choose(const game_t *game, const addon_t *addon)
+{
+    chosen = game;
+    chosen_addon = addon;
+    snprintf(settings.game, sizeof(settings.game), "%s", game->file);
+    snprintf(settings.addon, sizeof(settings.addon), "%s", addon ? addon->name : "");
+    settings_save(&settings);
+}
+
+static int fit_addons(const game_t *game)
+{
+    int i;
+
+    fitting_count = 0;
+    for (i = 0; i < addons.count; i++)
+        if (addons_fit(&addons.addons[i], game))
+            fitting[fitting_count++] = &addons.addons[i];
+    return fitting_count;
+}
+
+static int remembered_addon(void)
+{
+    int i;
+
+    for (i = 0; i < fitting_count; i++)
+        if (!strcasecmp(fitting[i]->name, settings.addon))
+            return i + 1;
+    return 0;
+}
+
 static void games_view(void)
 {
     int count = games.count + 1, width = 0, first, x, i;
@@ -194,9 +231,15 @@ static void games_view(void)
     {
         if (game_row < games.count)
         {
-            chosen = &games.games[game_row];
-            snprintf(settings.game, sizeof(settings.game), "%s", chosen->file);
-            settings_save(&settings);
+            const game_t *game = &games.games[game_row];
+
+            if (fit_addons(game))
+            {
+                addon_row = remembered_addon();
+                view = VIEW_ADDONS;
+            }
+            else
+                choose(game, NULL);
             return;
         }
         add_row = 0;
@@ -223,6 +266,36 @@ static void games_view(void)
         screen_text_center(170, "Add them under Add games.", INK_GRAY, 1);
     }
     screen_text_center(FOOTER_Y, GLYPH_CROSS " start    " GLYPH_CIRCLE " quit", INK_GRAY, 1);
+}
+
+static void addons_view(void)
+{
+    const game_t *game = &games.games[game_row];
+    int count = fitting_count + 1, first, i, y;
+
+    move(&addon_row, count);
+    if (pressed & PAD_CROSS)
+    {
+        choose(game, addon_row ? fitting[addon_row - 1] : NULL);
+        return;
+    }
+    if (pressed & PAD_CIRCLE)
+        view = VIEW_GAMES;
+
+    screen_background();
+    screen_text_center(6, "Add-ons", INK_GOLD, 2);
+    screen_text_center(28, game->title, INK_GRAY, 1);
+    first = addon_row >= ADDON_ROWS ? addon_row - ADDON_ROWS + 1 : 0;
+    for (i = first; i < count && i < first + ADDON_ROWS; i++)
+    {
+        y = 46 + (i - first) * ROW;
+        if (i == addon_row)
+            screen_skull(16, y - 2, frame / SKULL_FRAMES);
+        screen_text_fit(30, y, SCREEN_WIDTH - 46, i ? fitting[i - 1]->name : "Just the game",
+                        i == addon_row ? INK_WHITE : INK_RED, 0);
+    }
+    draw_status(FOOTER_Y - 11, 0);
+    screen_text_center(FOOTER_Y, GLYPH_CROSS " start    " GLYPH_CIRCLE " back", INK_GRAY, 1);
 }
 
 static void add_view(void)
@@ -409,6 +482,7 @@ static void finish_import(const import_status_t *status)
     settings_save(&settings);
     import_finish();
     games_scan(&games);
+    addons_scan(&addons);
     if (status->found_count)
     {
         snprintf(text, sizeof(text), "Added %s", status->found);
@@ -509,7 +583,7 @@ static void note(const char *text, int ok)
 static void start_send(void)
 {
     send_ready = upload_start(import_dir) == 0;
-    send_added = 0;
+    send_added = send_addons = 0;
     send_line_count = 0;
     send_archive[0] = 0;
     status_line[0] = 0;
@@ -526,15 +600,19 @@ static void leave_send(void)
         send_archive[0] = 0;
     }
     upload_stop();
-    if (send_added)
+    if (send_added || send_addons)
     {
-        char text[64];
+        char text[96];
 
-        snprintf(text, sizeof(text), "Added %d game%s", send_added, send_added == 1 ? "" : "s");
+        if (send_addons)
+            snprintf(text, sizeof(text), "Added %d game%s, %d add-on%s", send_added, send_added == 1 ? "" : "s",
+                     send_addons, send_addons == 1 ? "" : "s");
+        else
+            snprintf(text, sizeof(text), "Added %d game%s", send_added, send_added == 1 ? "" : "s");
         set_status(text, INK_GREEN);
         game_row = 0;
     }
-    view = send_added ? VIEW_GAMES : VIEW_ADD;
+    view = send_added || send_addons ? VIEW_GAMES : VIEW_ADD;
 }
 
 static void add_uploaded_wad(const char *path, const char *name)
@@ -567,6 +645,34 @@ static void add_uploaded_wad(const char *path, const char *name)
     send_added++;
 }
 
+static void add_uploaded_addon(const char *path, const char *name)
+{
+    char target[GAME_PATH], text[192];
+
+    if (strlen(name) >= ADDON_NAME || addons_check_wad(path, NULL))
+    {
+        snprintf(text, sizeof(text), "%s is not a valid add-on WAD", name);
+        note(text, 0);
+        unlink(path);
+        return;
+    }
+    if (addons_store_path(import_dir, name, target, sizeof(target)) == 0)
+    {
+        unlink(target);
+        if (rename(path, target) == 0)
+        {
+            addons_scan(&addons);
+            snprintf(text, sizeof(text), "Added add-on %s", name);
+            note(text, 1);
+            send_addons++;
+            return;
+        }
+    }
+    snprintf(text, sizeof(text), "Cannot store %s on the console", name);
+    note(text, 0);
+    unlink(path);
+}
+
 // Takes the next file the upload server finished. Game WADs are moved into place; archives go
 // through the importer under their own name and are deleted once read.
 static void take_upload(void)
@@ -586,11 +692,7 @@ static void take_upload(void)
     if (!memcmp(magic, "IWAD", 4))
         add_uploaded_wad(path, name);
     else if (!memcmp(magic, "PWAD", 4))
-    {
-        snprintf(text, sizeof(text), "%s is an add-on (pwad), not a game", name);
-        note(text, 0);
-        unlink(path);
-    }
+        add_uploaded_addon(path, name);
     else
     {
         snprintf(send_archive, sizeof(send_archive), "%s/%s", import_dir, name);
@@ -631,6 +733,7 @@ static void check_archive_import(void)
     unlink(send_archive);
     send_archive[0] = 0;
     games_scan(&games);
+    addons_scan(&addons);
 }
 
 static void send_view(void)
@@ -697,6 +800,17 @@ static const game_t *preselected(void)
 
     if (test_plan_game() && !game)
         plat_log("launcher: test plan game %s is not installed\n", test_plan_game());
+    if (game && test_plan_addon())
+    {
+        chosen_addon = addons_find(&addons, test_plan_addon());
+        if (!chosen_addon)
+            plat_log("launcher: test plan add-on %s is not installed\n", test_plan_addon());
+        else if (!addons_fit(chosen_addon, game))
+        {
+            plat_log("launcher: add-on %s does not fit %s\n", chosen_addon->name, game->title);
+            chosen_addon = NULL;
+        }
+    }
     return game;
 }
 
@@ -706,6 +820,7 @@ const game_t *launcher_choose(void)
     int i;
 
     games_scan(&games);
+    addons_scan(&addons);
     settings_load(&settings);
     if ((game = preselected()))
         return game;
@@ -734,6 +849,9 @@ const game_t *launcher_choose(void)
         case VIEW_GAMES:
             games_view();
             break;
+        case VIEW_ADDONS:
+            addons_view();
+            break;
         case VIEW_ADD:
             add_view();
             break;
@@ -754,4 +872,9 @@ const game_t *launcher_choose(void)
             present();
     }
     return chosen;
+}
+
+const char *launcher_addon(void)
+{
+    return chosen_addon ? chosen_addon->path : NULL;
 }

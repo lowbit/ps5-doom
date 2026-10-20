@@ -1,6 +1,7 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#include "addons.h"
 #include "games.h"
 
 #define SETTINGS_URL 512
@@ -9,6 +10,7 @@
 typedef struct
 {
     char game[64];
+    char addon[ADDON_NAME];
     char url[SETTINGS_URL];
     int accepted;
     char imported[MAX_IMPORTED][GAME_PATH + 24];

@@ -12,6 +12,7 @@
 #include <strings.h>
 #include <unistd.h>
 
+#include "addons.h"
 #include "games.h"
 #include "import.h"
 #include "platform.h"
@@ -328,6 +329,87 @@ static int write_game(const char *file, fill_fn fill, void *context, long long s
     return 0;
 }
 
+static int is_wad(const char *name)
+{
+    size_t length = strlen(name);
+
+    return length > 4 && !strcasecmp(name + length - 4, ".wad");
+}
+
+// Writes a PWAD under the add-ons folder. A file that turns out not to be one fails the import, or
+// is skipped when quiet, for archive entries that only looked like add-ons.
+static int write_addon(const char *base, fill_fn fill, void *context, long long size, int quiet)
+{
+    char path[GAME_PATH], part[GAME_PATH + 8], name[32];
+    int fd, got, existing;
+
+    if (addons_store_path(dest_dir, base, path, sizeof(path)))
+    {
+        if (!quiet)
+            fail("cannot store %s", base);
+        return quiet ? 0 : -1;
+    }
+    snprintf(part, sizeof(part), "%s.part", path);
+    upper(name, sizeof(name), base);
+    if ((fd = open(path, O_RDONLY)) >= 0)
+    {
+        existing = size >= 0 && lseek(fd, 0, SEEK_END) == size;
+        close(fd);
+        if (existing && addons_check_wad(path, NULL) == 0)
+        {
+            add_found(base);
+            return 0;
+        }
+    }
+    pthread_mutex_lock(&lock);
+    snprintf(status.current, sizeof(status.current), "%s", name);
+    pthread_mutex_unlock(&lock);
+
+    fd = open(part, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0)
+    {
+        fail("cannot write %s (error %d)", part, errno);
+        return -1;
+    }
+    while ((got = fill(context, data_buffer, CHUNK)) > 0)
+        if (write_all(fd, data_buffer, got))
+        {
+            fail(errno == ENOSPC ? "not enough space for %s" : "writing %s failed", name);
+            close(fd);
+            unlink(part);
+            return -1;
+        }
+    close(fd);
+    if (got < 0)
+    {
+        if (!cancelled)
+            fail("reading %s failed", name);
+        unlink(part);
+        return -1;
+    }
+    if (addons_check_wad(part, NULL))
+    {
+        unlink(part);
+        if (quiet)
+        {
+            plat_log("import: %s is not an add-on, skipped\n", base);
+            return 0;
+        }
+        fail("%s is not a valid add-on wad", name);
+        return -1;
+    }
+    unlink(path);
+    if (rename(part, path))
+    {
+        fail("cannot rename %s (error %d)", part, errno);
+        unlink(part);
+        return -1;
+    }
+    plat_log("import: wrote %s\n", path);
+    add_found(base);
+    return 0;
+}
+
 static int read_listing(source_t *s)
 {
     char base[LINK_URL];
@@ -352,6 +434,7 @@ static int extract(source_t *s, const char *name)
 {
     struct archive *a = archive_read_new();
     struct archive_entry *entry;
+    long long size;
     int result = 0, r;
 
     archive_read_support_format_zip(a);
@@ -381,10 +464,10 @@ static int extract(source_t *s, const char *name)
         while (base > path && base[-1] != '/' && base[-1] != '\\')
             base--;
         file = games_known_file(base);
-        if (!file || !strcmp(file, "doom1.wad"))
+        if ((file && !strcmp(file, "doom1.wad")) || (!file && !is_wad(base)))
             continue;
-        if (write_game(file, fill_archive, a,
-                       archive_entry_size_is_set(entry) ? archive_entry_size(entry) : -1))
+        size = archive_entry_size_is_set(entry) ? archive_entry_size(entry) : -1;
+        if (file ? write_game(file, fill_archive, a, size) : write_addon(base, fill_archive, a, size, 1))
         {
             result = -1;
             break;
@@ -454,7 +537,7 @@ static int run_source(const char *location, int single)
     else if (s.remote && single && (strstr(s.type, "text/html") || (i < s.pending_length && peek_buffer[i] == '<')))
         result = read_listing(&s);
     else if (s.pending_length >= 4 && !memcmp(peek_buffer, "PWAD", 4))
-        fail("%s is an add-on (pwad), not a game", name);
+        result = write_addon(name, fill_raw, &s, s.size, 0);
     else if (s.pending_length >= 4 && !memcmp(peek_buffer, "IWAD", 4))
     {
         if (!(file = games_known_file(name)))

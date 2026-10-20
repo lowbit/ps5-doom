@@ -140,6 +140,8 @@ static void load_test_plan(void)
             test_cpu_present = 1;
         else if (!strncmp(line, "game ", 5))
             test_plan_set_game(line + 5);
+        else if (!strncmp(line, "addon ", 6))
+            test_plan_set_addon(line + 6);
         else if (!strncmp(line, "text ", 5))
             test_plan_set_text(line + 5);
         else if (!strcmp(line, "reset"))

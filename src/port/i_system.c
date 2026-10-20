@@ -2,11 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/mman.h>
 
 #include "doomdef.h"
 #include "d_net.h"
 #include "g_game.h"
+#include "m_argv.h"
 #include "m_misc.h"
 #include "i_input.h"
 #include "i_sound.h"
@@ -89,6 +91,39 @@ char *I_GetSaveDir(void)
     return (char *)plat_save_dir();
 }
 
+// Adds a WAD to the -file parameters the engine reads in D_DoomMain: after the ones already given,
+// so the launcher's choice loads last, or as a new -file group at the end.
+static void add_file_parameter(const char *path)
+{
+    char **next = malloc(sizeof(char *) * ((size_t)myargc + 3));
+    int group = M_CheckParm("-file"), i, n = 0;
+
+    if (!next)
+        return;
+    if (group)
+    {
+        int end = group;
+
+        while (++end < myargc && myargv[end][0] != '-')
+            ;
+        for (i = 0; i < end; i++)
+            next[n++] = myargv[i];
+        next[n++] = (char *)path;
+        for (; i < myargc; i++)
+            next[n++] = myargv[i];
+    }
+    else
+    {
+        for (i = 0; i < myargc; i++)
+            next[n++] = myargv[i];
+        next[n++] = "-file";
+        next[n++] = (char *)path;
+    }
+    next[n] = NULL;
+    myargv = next;
+    myargc = n;
+}
+
 iwad_t *I_ChooseIwad(void)
 {
     static const struct
@@ -111,10 +146,23 @@ iwad_t *I_ChooseIwad(void)
     static iwad_t iwad;
     static char savename[GAME_PATH];
     const game_t *game = launcher_choose();
-    size_t i;
+    const char *addon, *base;
+    char suffix[32] = "";
+    size_t i, length;
 
     if (!game)
         return NULL;
+    if ((addon = launcher_addon()))
+    {
+        base = strrchr(addon, '/') ? strrchr(addon, '/') + 1 : addon;
+        length = strlen(base);
+        if (length > 4 && !strcasecmp(base + length - 4, ".wad"))
+            length -= 4;
+        if (length > 24)
+            length = 24;
+        snprintf(suffix, sizeof(suffix), "-%.*s", (int)length, base);
+        add_file_parameter(addon);
+    }
     for (i = 0; i < sizeof(modes) / sizeof(modes[0]); i++)
         if (modes[i].kind == game->kind)
         {
@@ -122,11 +170,14 @@ iwad_t *I_ChooseIwad(void)
             iwad.mission = modes[i].mission;
             iwad.language = modes[i].language;
         }
-    snprintf(savename, sizeof(savename), "%s/%.*ssav", plat_save_dir(), (int)(strlen(game->file) - 4),
-             game->file);
+    snprintf(savename, sizeof(savename), "%s/%.*s%ssav", plat_save_dir(), (int)(strlen(game->file) - 4),
+             game->file, suffix);
     iwad.path = (char *)game->path;
     iwad.savename = savename;
-    plat_log("launcher: starting %s from %s\n", game->title, game->path);
+    if (addon)
+        plat_log("launcher: starting %s from %s with %s\n", game->title, game->path, addon);
+    else
+        plat_log("launcher: starting %s from %s\n", game->title, game->path);
     return &iwad;
 }
 

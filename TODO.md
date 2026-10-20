@@ -2,8 +2,8 @@
 
 ## Add-ons (PWADs)
 
-The launcher only starts the main games; add-on WADs are refused by the importer and the send
-screen. What the 2024 re-release add-ons contain (checked 2026-10-04):
+The launcher starts a game with one add-on, chosen under the game; the importer and the send screen
+store PWADs in `addons/`. What the 2024 re-release add-ons contain (checked 2026-10-04):
 
 | WAD | Maps | Needs beyond loading the file |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ screen. What the 2024 re-release add-ons contain (checked 2026-10-04):
 
 Loading itself exists: id's `-file` still works. Order of work:
 
-- [ ] Pick an add-on in the launcher under its game and start it with `-file`; accept PWADs in the
+- [x] Pick an add-on in the launcher under its game and start it with `-file`; accept PWADs in the
       importer and the send screen into their own folder; give each add-on its own saves.
 - [ ] A `UMAPINFO` reader (level names, music, skies, progression, intermission and end screens,
       episode entries). Covers *No Rest for the Living* and the *Master Levels*, and is the base for

@@ -32,6 +32,7 @@ static int captures[MAX_CAPTURES];
 static int capture_count;
 static int frame_limit;
 static char game[64];
+static char addon[64];
 static char text[512];
 
 static void parse_token(step_t *step, const char *token)
@@ -166,4 +167,14 @@ void test_plan_set_text(const char *value)
 const char *test_plan_text(void)
 {
     return text[0] ? text : NULL;
+}
+
+void test_plan_set_addon(const char *file)
+{
+    snprintf(addon, sizeof(addon), "%s", file ? file : "");
+}
+
+const char *test_plan_addon(void)
+{
+    return addon[0] ? addon : NULL;
 }

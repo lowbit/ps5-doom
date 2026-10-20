@@ -12,6 +12,8 @@ void test_plan_limit(int frames);
 int test_plan_finished(int frame);
 void test_plan_set_game(const char *file);
 const char *test_plan_game(void);
+void test_plan_set_addon(const char *file);
+const char *test_plan_addon(void);
 void test_plan_set_text(const char *text);
 const char *test_plan_text(void);
 

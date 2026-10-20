@@ -47,6 +47,7 @@ int plat_init(int argc, char **argv)
     test_plan_captures(getenv("DOOM_CAPTURE"));
     test_plan_input(getenv("DOOM_INPUT"));
     test_plan_set_game(getenv("DOOM_IWAD"));
+    test_plan_set_addon(getenv("DOOM_ADDON"));
     test_plan_set_text(getenv("DOOM_TEXT"));
     mkdir(save_dir, 0755);
     if (!wad_dirs[0] || !out_dir)
