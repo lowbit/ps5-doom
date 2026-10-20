@@ -37,6 +37,10 @@ docker build -t ps5-doom-build docker/
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(cygpath -w "$PWD"):/src" -w /src ps5-doom-build make -j16 ps5 host
 ```
 
+The native-app tools come from a mirror of a repository that is gone from GitHub (see External
+code and tools below); `NATIVE_APP_REPO` names another clone of it, and `tools/fetch-native-tools.sh`
+sets `USE_CCACHE=0` for their build when `ccache` is absent, as it is in the image.
+
 `make ps5` fetches the pinned tools, the libraries (`tools/fetch-third-party.sh`) and the
 shareware WAD on first use, then:
 
@@ -227,10 +231,13 @@ id's keyboard help (`HELP1`, `HELP`); DOOM II keeps its *Read This!* entry whene
 
 ## External code and tools (pinned)
 
-- [ps5-native-app-boilerplate](https://github.com/blackbearreloaded/ps5-native-app-boilerplate)
-  `b1315a9`: its `ps5-native-tool` (PIE to PS5 module, FSELF signing), its clean-room `libc.prx`,
+- [ps5-native-app-boilerplate](https://github.com/Phononenom/ps5-native-app-boilerplate)
+  `b1315a976c32`: its `ps5-native-tool` (PIE to PS5 module, FSELF signing), its clean-room `libc.prx`,
   its intermediate PIE linker script, and the PS5 payload SDK v0.42 it fetches. Built in
-  `.deps/native-app` by `tools/fetch-native-tools.sh`; nothing from it is copied into `src/`.
+  `.deps/native-app` by `tools/fetch-native-tools.sh`; nothing from it is copied into `src/`. The
+  repository it was written in, `blackbearreloaded/ps5-native-app-boilerplate`, is gone from GitHub;
+  three re-uploads (`drakmor`, `Phononenom`, `efkann`) carry the pinned commit under the same SHA,
+  `b1315a976c320d57f5dc89699106c3cdf957abb7`, and the script takes another clone from `NATIVE_APP_REPO`.
 - [libarchive](https://www.libarchive.org/) 3.8.9, [xz](https://tukaani.org/xz/) 5.8.4 (liblzma),
   [zlib](https://zlib.net/) 1.3.2 and [qrcodegen](https://www.nayuki.io/page/qr-code-generator-library)
   1.8.0, fetched and checked by `tools/fetch-third-party.sh` into `.deps/third-party` and compiled
