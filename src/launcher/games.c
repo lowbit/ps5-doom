@@ -48,6 +48,16 @@ const char *games_known_file(const char *name)
     return NULL;
 }
 
+const char *games_known_title(const char *file)
+{
+    int i;
+
+    for (i = 0; i < KNOWN; i++)
+        if (!strcasecmp(file, known[i].file))
+            return known[i].title;
+    return file;
+}
+
 static int has_suffix(const char *name, const char *suffix)
 {
     size_t length = strlen(name), suffix_length = strlen(suffix);

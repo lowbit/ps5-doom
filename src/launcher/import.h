@@ -24,6 +24,8 @@ typedef struct
     char current[32];
     char found[192];
     int found_count;
+    char existing[192];
+    int existing_count;
     char message[192];
 } import_status_t;
 

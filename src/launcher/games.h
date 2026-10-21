@@ -36,6 +36,8 @@ typedef struct
 } game_list_t;
 
 const char *games_known_file(const char *name);
+// The title of a known game file, or the name itself for an unknown one.
+const char *games_known_title(const char *file);
 int games_is_archive(const char *name);
 int games_check_wad(const char *path, int *has_episode4);
 void games_scan(game_list_t *list);

@@ -34,7 +34,7 @@ Loading itself exists: id's `-file` still works. Order of work:
       The same run again went 9000 frames without a crash, and the PC build (with AddressSanitizer,
       with and without audio) plays the same demos cleanly. Keep a kernel log recording during
       console runs (klogsrv, or polling the helper's `/api/ps5/klog`) to catch the next one.
-- [ ] Games already installed count as added: sending the collection 7Z again reports "Added
+- [x] Games already installed count as added: sending the collection 7Z again reports "Added
       DOOM.WAD DOOM2.WAD PLUTONIA.WAD TNT.WAD" and the game list "Added 5 games" when nothing new
       arrived. Report only new games, and name them by title.
 - [ ] The page's *On the console* list waits for a running upload (the server takes one request at a

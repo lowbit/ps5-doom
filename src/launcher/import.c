@@ -70,21 +70,31 @@ static void upper(char *out, size_t size, const char *text)
     out[i] = 0;
 }
 
-static void add_found(const char *file)
+// Lists a game's title once in a status field, separated by commas.
+static void add_title(char *list, size_t size, int *count, const char *file)
 {
-    char name[32];
+    const char *title = games_known_title(file);
 
-    upper(name, sizeof(name), file);
     pthread_mutex_lock(&lock);
-    if (!strstr(status.found, name))
+    if (!strstr(list, title))
     {
-        if (status.found[0])
-            strncat(status.found, " ", sizeof(status.found) - strlen(status.found) - 1);
-        strncat(status.found, name, sizeof(status.found) - strlen(status.found) - 1);
-        status.found_count++;
+        if (list[0])
+            strncat(list, ", ", size - strlen(list) - 1);
+        strncat(list, title, size - strlen(list) - 1);
+        (*count)++;
     }
     status.current[0] = 0;
     pthread_mutex_unlock(&lock);
+}
+
+static void add_found(const char *file)
+{
+    add_title(status.found, sizeof(status.found), &status.found_count, file);
+}
+
+static void add_existing(const char *file)
+{
+    add_title(status.existing, sizeof(status.existing), &status.existing_count, file);
 }
 
 static long long logical(const source_t *s)
@@ -281,7 +291,7 @@ static int write_game(const char *file, fill_fn fill, void *context, long long s
     upper(name, sizeof(name), file);
     if (already_have(path, size))
     {
-        add_found(file);
+        add_existing(file);
         return 0;
     }
     pthread_mutex_lock(&lock);
@@ -489,7 +499,7 @@ static void *work(void *arg)
     pthread_mutex_lock(&lock);
     status.current[0] = 0;
     status.state = cancelled ? IMPORT_CANCELLED
-                 : failed && !status.found_count ? IMPORT_FAILED : IMPORT_DONE;
+                 : failed && !status.found_count && !status.existing_count ? IMPORT_FAILED : IMPORT_DONE;
     pthread_mutex_unlock(&lock);
     return NULL;
 }

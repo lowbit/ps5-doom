@@ -413,12 +413,19 @@ static void finish_import(const import_status_t *status)
     {
         snprintf(text, sizeof(text), "Added %s", status->found);
         set_status(text, INK_GREEN);
+        plat_log("launcher: added %s\n", status->found);
+    }
+    else if (status->existing_count)
+    {
+        snprintf(text, sizeof(text), "Already here: %s", status->existing);
+        set_status(text, INK_GREEN);
+        plat_log("launcher: already here: %s\n", status->existing);
     }
     else if (status->message[0])
         set_status(status->message, INK_RED);
     else if (status->state == IMPORT_DONE)
         set_status("No game WADs found to add", INK_RED);
-    view = status->found_count ? VIEW_GAMES : import_return;
+    view = status->found_count || status->existing_count ? VIEW_GAMES : import_return;
     game_row = 0;
     auto_import = 0;
 }
@@ -621,12 +628,20 @@ static void check_archive_import(void)
     import_finish();
     name = strrchr(send_archive, '/') + 1;
     if (status.found_count)
+    {
         snprintf(text, sizeof(text), "Added %s from %s", status.found, name);
+        plat_log("launcher: added %s\n", status.found);
+    }
+    else if (status.existing_count)
+    {
+        snprintf(text, sizeof(text), "Already here from %s: %s", name, status.existing);
+        plat_log("launcher: already here: %s\n", status.existing);
+    }
     else if (status.message[0])
         snprintf(text, sizeof(text), "%s", status.message);
     else
         snprintf(text, sizeof(text), "No game WADs found in %s", name);
-    note(text, status.found_count > 0);
+    note(text, status.found_count > 0 || status.existing_count > 0);
     send_added += status.found_count;
     unlink(send_archive);
     send_archive[0] = 0;
